@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бизнес-модель QUANTUM - Анализатор</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+        }
+
+        .panel h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .results {
+            grid-column: 1 / -1;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .analytics-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .analytics-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .analytics-card h4 {
+            color: #1e293b;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 8px;
+        }
+        
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .analytics-table td {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .analytics-table td:first-child {
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .analytics-table td:last-child {
+            text-align: right;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .analytics-table .highlight {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            font-weight: bold;
+            border-radius: 6px;
+            padding: 8px 12px;
+        }
+        
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .chart-card h4 {
+            color: #1e293b;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        
+        .chart-card canvas {
+            max-height: 300px;
+        }
+
+        .result-card h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .result-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .result-label {
+            color: #718096;
+            font-size: 0.9em;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .success {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .comparison-table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: #e2e8f0;
+            border: none;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            margin-right: 5px;
+            font-weight: 600;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .result-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Бизнес-модель QUANTUM</h1>
+            <p>Анализатор проекта синхронизации времени для отелей Кубы</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Панель параметров -->
+            <div class="panel">
+                <h2>⚙️ Параметры проекта</h2>
+                
+                <div class="form-group">
+                    <label for="scenario">Сценарий развития:</label>
+                    <select id="scenario">
+                        <option value="baseline">Базовый</option>
+                        <option value="optimistic">Оптимистичный</option>
+                        <option value="pessimistic">Пессимистичный</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="variant">Модель монетизации:</label>
+                    <select id="variant">
+                        <option value="B">Аренда оборудования (80/20)</option>
+                        <option value="A">Продажа + подписка</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="hotels">Количество отелей:</label>
+                    <input type="number" id="hotels" value="50" min="1" max="200">
+                </div>
+
+                <div class="form-group">
+                    <label for="monthlyFee">Абонентская плата (USD/месяц):</label>
+                    <input type="number" id="monthlyFee" value="500" min="100" max="1000" step="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="equipmentCost">Себестоимость оборудования (USD):</label>
+                    <input type="number" id="equipmentCost" value="1154" min="500" max="3000" step="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="exchangeRate">Курс рубль/доллар:</label>
+                    <input type="number" id="exchangeRate" value="78" min="50" max="150" step="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="equipmentType">Тип оборудования:</label>
+                    <select id="equipmentType">
+                        <option value="mini">Quantum GrandMaster Mini (Термостатированный кварц)</option>
+                        <option value="1u_2u">Quantum GrandMaster 1U/2U (Рубидиевый/цезиевый генератор)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="assemblyOption">Вариант сборки оборудования:</label>
+                    <select id="assemblyOption" onchange="updateAssemblyDescription()">
+                        <option value="shiwa_assembled">Готовое оборудование от SHIWA</option>
+                        <option value="etecsa_assembly">Сборка ETECSA из комплектующих</option>
+                        <option value="mixed_approach">Смешанный подход</option>
+                    </select>
+                    <div id="assemblyDescription" class="form-description" style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        SHIWA собирает и поставляет готовое оборудование
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="assemblyVariant">Вариант распределения доходов:</label>
+                    <select id="assemblyVariant">
+                        <option value="80_20">Стандартный (80% SHIWA / 20% ETECSA)</option>
+                        <option value="50_50">Равное распределение (50% / 50%)</option>
+                    </select>
+                </div>
+
+                <button class="btn" onclick="calculateResults()">📊 Рассчитать</button>
+                <button class="btn" onclick="compareScenarios()" style="margin-top: 10px; background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">🔄 Сравнить сценарии</button>
+            </div>
+
+            <!-- Панель дополнительных анализов -->
+            <div class="panel">
+                <h2>📈 Дополнительные анализы</h2>
+                
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('sensitivity')">Чувствительность</button>
+                    <button class="tab" onclick="showTab('breakeven')">Безубыточность</button>
+                    <button class="tab" onclick="showTab('charts')">Графики</button>
+                </div>
+
+                <div id="sensitivity" class="tab-content active">
+                    <div class="form-group">
+                        <label for="sensitivityParam">Параметр для анализа:</label>
+                        <select id="sensitivityParam">
+                            <option value="hotels_count">Количество отелей</option>
+                            <option value="monthly_fee">Абонентская плата</option>
+                            <option value="equipment_cost">Себестоимость оборудования</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="sensitivityAnalysis()">📊 Анализ чувствительности</button>
+                </div>
+
+                <div id="breakeven" class="tab-content">
+                    <button class="btn" onclick="breakevenAnalysis()">📊 Анализ безубыточности</button>
+                </div>
+
+                <div id="charts" class="tab-content">
+                    <button class="btn" onclick="generateCharts()">📊 Сгенерировать графики</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Результаты -->
+        <div class="results">
+            <div id="loading" class="loading" style="display: none;">
+                ⏳ Выполняется расчет...
+            </div>
+
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="success" class="success" style="display: none;"></div>
+
+            <div id="results" style="display: none;">
+                <h2>📊 Результаты расчета</h2>
+                
+                <div class="result-grid" id="resultGrid">
+                    <!-- Результаты будут вставлены здесь -->
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="resultsChart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentResults = null;
+        let charts = {};
+
+        // Обновить описание варианта сборки
+        function updateAssemblyDescription() {
+            const assemblyOption = document.getElementById('assemblyOption').value;
+            const description = document.getElementById('assemblyDescription');
+            
+            const descriptions = {
+                'shiwa_assembled': 'SHIWA собирает и поставляет готовое оборудование',
+                'etecsa_assembly': 'SHIWA поставляет комплектующие, ETECSA собирает оборудование',
+                'mixed_approach': 'Часть оборудования готовая, часть собирается на месте'
+            };
+            
+            description.textContent = descriptions[assemblyOption] || '';
+        }
+
+        // Показать/скрыть вкладки
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        // Основной расчет
+        async function calculateResults() {
+            showLoading(true);
+            hideMessages();
+
+            try {
+                const params = {
+                    scenario: document.getElementById('scenario').value,
+                    variant: document.getElementById('variant').value,
+                    hotels_count: parseInt(document.getElementById('hotels').value),
+                    monthly_fee: parseFloat(document.getElementById('monthlyFee').value),
+                    equipment_cost: parseFloat(document.getElementById('equipmentCost').value),
+                    exchange_rate: parseFloat(document.getElementById('exchangeRate').value),
+                    equipment_type: document.getElementById('equipmentType').value,
+                    assembly_option: document.getElementById('assemblyOption').value,
+                    assembly_variant: document.getElementById('assemblyVariant').value
+                };
+
+                const response = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(params)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentResults = result.data;
+                    displayResults(result.data);
+                    showSuccess('Расчет выполнен успешно!');
+                } else {
+                    showError('Ошибка расчета: ' + result.error);
+                }
+            } catch (error) {
+                showError('Ошибка подключения: ' + error.message);
+            }
+
+            showLoading(false);
+        }
+
+        // Отображение результатов
+        function displayResults(data) {
+            const summary = data.summary;
+            const grid = document.getElementById('resultGrid');
+            
+            grid.innerHTML = `
+                <div class="result-card">
+                    <h3>ОБОРУДОВАНИЕ</h3>
+                    <div class="result-value">${summary.equipment_name}</div>
+                    <div class="result-label">${summary.assembly_name}</div>
+                </div>
+                <div class="result-card">
+                    <h3>SHIWA NETWORK</h3>
+                    <div class="result-value">$${summary.shiwa.total_revenue.toLocaleString()}</div>
+                    <div class="result-label">Общий доход</div>
+                </div>
+                <div class="result-card">
+                    <h3>SHIWA NETWORK</h3>
+                    <div class="result-value">$${summary.shiwa.net_profit.toLocaleString()}</div>
+                    <div class="result-label">Чистая прибыль</div>
+                </div>
+                <div class="result-card">
+                    <h3>SHIWA NETWORK</h3>
+                    <div class="result-value">${summary.shiwa.roi.toFixed(1)}%</div>
+                    <div class="result-label">ROI</div>
+                </div>
+                <div class="result-card">
+                    <h3>ETECSA</h3>
+                    <div class="result-value">$${summary.etecsa.net_profit.toLocaleString()}</div>
+                    <div class="result-label">Чистая прибыль</div>
+                </div>
+                <div class="result-card">
+                    <h3>ОТЕЛИ</h3>
+                    <div class="result-value">$${summary.hotels.total_benefit.toLocaleString()}</div>
+                    <div class="result-label">Годовая экономия</div>
+                </div>
+                <div class="result-card">
+                    <h3>ОКУПАЕМОСТЬ</h3>
+                    <div class="result-value">${data.payback ? data.payback.payback_months.toFixed(1) : 'N/A'}</div>
+                    <div class="result-label">месяцев</div>
+                </div>
+            `;
+            
+            // Добавляем детальную аналитику
+            addDetailedAnalytics(data);
+
+            document.getElementById('results').style.display = 'block';
+            
+            // Создаем график результатов
+            createResultsChart(data);
+        }
+
+        // Добавление детальной аналитики
+        function addDetailedAnalytics(data) {
+            const summary = data.summary;
+            
+            // Создаем контейнер для аналитики
+            let analyticsContainer = document.getElementById('analyticsContainer');
+            if (!analyticsContainer) {
+                analyticsContainer = document.createElement('div');
+                analyticsContainer.id = 'analyticsContainer';
+                analyticsContainer.className = 'analytics-section';
+                document.getElementById('results').appendChild(analyticsContainer);
+            }
+            
+            analyticsContainer.innerHTML = `
+                <h3>📊 Детальная финансовая аналитика</h3>
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h4>SHIWA NETWORK</h4>
+                        <table class="analytics-table">
+                            <tr><td>Доход от оборудования:</td><td>$${summary.shiwa.equipment_revenue.toLocaleString()}</td></tr>
+                            <tr><td>Доход от подписки:</td><td>$${summary.shiwa.subscription_revenue.toLocaleString()}</td></tr>
+                            <tr><td>Общий доход:</td><td>$${summary.shiwa.total_revenue.toLocaleString()}</td></tr>
+                            <tr><td>Общие затраты:</td><td>$${summary.shiwa.total_costs.toLocaleString()}</td></tr>
+                            <tr><td class="highlight">Чистая прибыль:</td><td class="highlight">$${summary.shiwa.net_profit.toLocaleString()}</td></tr>
+                            <tr><td>ROI:</td><td>${summary.shiwa.roi.toFixed(1)}%</td></tr>
+                        </table>
+                    </div>
+                    
+                    <div class="analytics-card">
+                        <h4>ETECSA</h4>
+                        <table class="analytics-table">
+                            <tr><td>Доход от оборудования:</td><td>$${summary.etecsa.equipment_profit.toLocaleString()}</td></tr>
+                            <tr><td>Доход от подписки:</td><td>$${summary.etecsa.subscription_revenue.toLocaleString()}</td></tr>
+                            <tr><td>Операционные затраты:</td><td>$${summary.etecsa.operational_costs.toLocaleString()}</td></tr>
+                            <tr><td class="highlight">Чистая прибыль:</td><td class="highlight">$${summary.etecsa.net_profit.toLocaleString()}</td></tr>
+                        </table>
+                    </div>
+                    
+                    <div class="analytics-card">
+                        <h4>ОТЕЛИ</h4>
+                        <table class="analytics-table">
+                            <tr><td>Годовые затраты:</td><td>$${summary.hotels.annual_cost.toLocaleString()}</td></tr>
+                            <tr><td>Экономия от биллинга:</td><td>$${summary.hotels.billing_savings.toLocaleString()}</td></tr>
+                            <tr><td>Экономия от эффективности:</td><td>$${summary.hotels.efficiency_savings.toLocaleString()}</td></tr>
+                            <tr><td>Экономия от простоя:</td><td>$${summary.hotels.downtime_savings.toLocaleString()}</td></tr>
+                            <tr><td class="highlight">Общая экономия:</td><td class="highlight">$${summary.hotels.total_benefit.toLocaleString()}</td></tr>
+                            <tr><td>ROI:</td><td>${summary.hotels.roi.toFixed(1)}%</td></tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="charts-container">
+                    <div class="chart-card">
+                        <h4>Сравнение доходов</h4>
+                        <canvas id="revenueChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h4>Сравнение прибыли</h4>
+                        <canvas id="profitChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h4>Распределение доходов SHIWA</h4>
+                        <canvas id="shiwaRevenueChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h4>Распределение доходов ETECSA</h4>
+                        <canvas id="etecsaRevenueChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            // Создаем графики
+            createAnalyticsCharts(summary);
+        }
+
+        // Создание графиков аналитики
+        function createAnalyticsCharts(summary) {
+            // График сравнения доходов
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            new Chart(revenueCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['SHIWA NETWORK', 'ETECSA'],
+                    datasets: [{
+                        label: 'Общий доход',
+                        data: [summary.shiwa.total_revenue, summary.etecsa.equipment_profit + summary.etecsa.subscription_revenue],
+                        backgroundColor: ['#4F46E5', '#059669'],
+                        borderColor: ['#3730A3', '#047857'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // График сравнения прибыли
+            const profitCtx = document.getElementById('profitChart').getContext('2d');
+            new Chart(profitCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['SHIWA NETWORK', 'ETECSA'],
+                    datasets: [{
+                        label: 'Чистая прибыль',
+                        data: [summary.shiwa.net_profit, summary.etecsa.net_profit],
+                        backgroundColor: ['#7C3AED', '#DC2626'],
+                        borderColor: ['#5B21B6', '#B91C1C'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // График распределения доходов SHIWA
+            const shiwaRevenueCtx = document.getElementById('shiwaRevenueChart').getContext('2d');
+            new Chart(shiwaRevenueCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Доход от оборудования', 'Доход от подписки'],
+                    datasets: [{
+                        data: [summary.shiwa.equipment_revenue, summary.shiwa.subscription_revenue],
+                        backgroundColor: ['#4F46E5', '#8B5CF6'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = '$' + context.parsed.toLocaleString();
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // График распределения доходов ETECSA
+            const etecsaRevenueCtx = document.getElementById('etecsaRevenueChart').getContext('2d');
+            new Chart(etecsaRevenueCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Доход от оборудования', 'Доход от подписки'],
+                    datasets: [{
+                        data: [summary.etecsa.equipment_profit, summary.etecsa.subscription_revenue],
+                        backgroundColor: ['#059669', '#10B981'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = '$' + context.parsed.toLocaleString();
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Создание графика результатов
+        function createResultsChart(data) {
+            const ctx = document.getElementById('resultsChart').getContext('2d');
+            
+            if (charts.results) {
+                charts.results.destroy();
+            }
+
+            const summary = data.summary;
+            
+            charts.results = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['SHIWA Доход', 'SHIWA Прибыль', 'ETECSA Прибыль', 'Отели ROI'],
+                    datasets: [{
+                        label: 'Финансовые показатели',
+                        data: [
+                            summary.shiwa.total_revenue,
+                            summary.shiwa.net_profit,
+                            summary.etecsa.net_profit,
+                            summary.hotels.roi * 1000 // Масштабируем для видимости
+                        ],
+                        backgroundColor: [
+                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(118, 75, 162, 0.8)',
+                            'rgba(72, 187, 120, 0.8)',
+                            'rgba(237, 137, 54, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(102, 126, 234, 1)',
+                            'rgba(118, 75, 162, 1)',
+                            'rgba(72, 187, 120, 1)',
+                            'rgba(237, 137, 54, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Финансовые показатели проекта'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Анализ чувствительности
+        async function sensitivityAnalysis() {
+            showLoading(true);
+            hideMessages();
+
+            try {
+                const param = document.getElementById('sensitivityParam').value;
+                let values = [];
+                
+                if (param === 'hotels_count') {
+                    values = [25, 35, 50, 65, 75, 100];
+                } else if (param === 'monthly_fee') {
+                    values = [300, 400, 500, 600, 700, 800];
+                } else if (param === 'equipment_cost') {
+                    values = [800, 1000, 1154, 1300, 1500, 1800];
+                }
+
+                const response = await fetch('/api/sensitivity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        parameter: param,
+                        values: values,
+                        scenario: document.getElementById('scenario').value,
+                        variant: document.getElementById('variant').value
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    createSensitivityChart(result.data);
+                    showSuccess('Анализ чувствительности выполнен!');
+                } else {
+                    showError('Ошибка анализа: ' + result.error);
+                }
+            } catch (error) {
+                showError('Ошибка подключения: ' + error.message);
+            }
+
+            showLoading(false);
+        }
+
+        // Создание графика чувствительности
+        function createSensitivityChart(data) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            if (charts.comparison) {
+                charts.comparison.destroy();
+            }
+
+            const labels = data.results.map(r => r.value.toString());
+            const profits = data.results.map(r => r.shiwa_profit);
+            const rois = data.results.map(r => r.shiwa_roi);
+
+            charts.comparison = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Прибыль SHIWA (USD)',
+                        data: profits,
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        yAxisID: 'y'
+                    }, {
+                        label: 'ROI SHIWA (%)',
+                        data: rois,
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Анализ чувствительности: ${data.parameter}`
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Прибыль (USD)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'ROI (%)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+        }
+
+        // Анализ безубыточности
+        async function breakevenAnalysis() {
+            showLoading(true);
+            hideMessages();
+
+            try {
+                const response = await fetch('/api/breakeven');
+                const result = await response.json();
+
+                if (result.success) {
+                    const data = result.data;
+                    showSuccess(`SHIWA: ${data.shiwa.breakeven_hotels.toFixed(1)} отелей, ETECSA: ${data.etecsa.breakeven_hotels.toFixed(1)} отелей`);
+                } else {
+                    showError('Ошибка анализа: ' + result.error);
+                }
+            } catch (error) {
+                showError('Ошибка подключения: ' + error.message);
+            }
+
+            showLoading(false);
+        }
+
+        // Сравнение сценариев
+        async function compareScenarios() {
+            showLoading(true);
+            hideMessages();
+
+            try {
+                const scenarios = [
+                    { scenario: 'baseline', variant: 'B' },
+                    { scenario: 'optimistic', variant: 'B' },
+                    { scenario: 'pessimistic', variant: 'B' }
+                ];
+
+                const response = await fetch('/api/compare', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ scenarios: scenarios })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    createComparisonChart(result.data);
+                    showSuccess('Сравнение сценариев выполнено!');
+                } else {
+                    showError('Ошибка сравнения: ' + result.error);
+                }
+            } catch (error) {
+                showError('Ошибка подключения: ' + error.message);
+            }
+
+            showLoading(false);
+        }
+
+        // Создание графика сравнения
+        function createComparisonChart(data) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            if (charts.comparison) {
+                charts.comparison.destroy();
+            }
+
+            const labels = data.map(d => `${d.scenario} (${d.variant})`);
+            const profits = data.map(d => d.summary.shiwa.net_profit);
+            const revenues = data.map(d => d.summary.shiwa.total_revenue);
+
+            charts.comparison = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Прибыль SHIWA (USD)',
+                        data: profits,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }, {
+                        label: 'Доход SHIWA (USD)',
+                        data: revenues,
+                        backgroundColor: 'rgba(118, 75, 162, 0.8)',
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Сравнение сценариев развития'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Генерация графиков
+        function generateCharts() {
+            if (currentResults) {
+                createResultsChart(currentResults);
+                showSuccess('Графики обновлены!');
+            } else {
+                showError('Сначала выполните расчет!');
+            }
+        }
+
+        // Вспомогательные функции
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => errorDiv.style.display = 'none', 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => successDiv.style.display = 'none', 3000);
+        }
+
+        function hideMessages() {
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+        }
+
+        // Автоматический расчет при загрузке страницы
+        window.addEventListener('load', () => {
+            calculateResults();
+        });
+    </script>
+</body>
+</html>

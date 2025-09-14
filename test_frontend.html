@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест системы аналитики</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            width: 400px;
+            height: 300px;
+            margin: 20px auto;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .result {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест системы аналитики</h1>
+    
+    <div class="test-section">
+        <h2>Тест API аналитики</h2>
+        <button onclick="testAnalyticsAPI()">Загрузить данные аналитики</button>
+        <div id="apiResult" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Тест графиков</h2>
+        <button onclick="testCharts()">Создать тестовые графики</button>
+        <div class="chart-container">
+            <canvas id="testChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Результаты тестов</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <script>
+        async function testAnalyticsAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = 'Загрузка...';
+            
+            try {
+                const response = await fetch('/api/analytics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        scenario: 'baseline',
+                        variant: 'A',
+                        equipment_type: 'mini',
+                        assembly_option: 'shiwa_assembled',
+                        assembly_variant: '80_20'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <h3>✅ API работает!</h3>
+                        <p><strong>Общая стоимость проекта:</strong> $${data.data.metrics.total_project_value.toLocaleString()}</p>
+                        <p><strong>ROI SHIWA:</strong> ${data.data.metrics.shiwa_roi.toFixed(1)}%</p>
+                        <p><strong>ROI ETECSA:</strong> ${data.data.metrics.etecsa_roi.toFixed(1)}%</p>
+                        <p><strong>ROI отелей:</strong> ${data.data.metrics.hotel_roi.toFixed(1)}%</p>
+                    `;
+                    addTestResult('API аналитики', 'УСПЕХ', 'Данные получены корректно');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>❌ Ошибка API</h3>
+                    <p>${error.message}</p>
+                `;
+                addTestResult('API аналитики', 'ОШИБКА', error.message);
+            }
+        }
+        
+        function testCharts() {
+            try {
+                const ctx = document.getElementById('testChart').getContext('2d');
+                
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['SHIWA NETWORK', 'ETECSA'],
+                        datasets: [{
+                            label: 'Тестовые данные',
+                            data: [128667, 283000],
+                            backgroundColor: ['#4F46E5', '#059669'],
+                            borderColor: ['#3730A3', '#047857'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                addTestResult('Графики Chart.js', 'УСПЕХ', 'График создан успешно');
+            } catch (error) {
+                addTestResult('Графики Chart.js', 'ОШИБКА', error.message);
+            }
+        }
+        
+        function addTestResult(testName, status, message) {
+            const resultsDiv = document.getElementById('testResults');
+            const statusIcon = status === 'УСПЕХ' ? '✅' : '❌';
+            const statusColor = status === 'УСПЕХ' ? '#10b981' : '#ef4444';
+            
+            resultsDiv.innerHTML += `
+                <div class="result" style="border-left-color: ${statusColor};">
+                    <strong>${statusIcon} ${testName}:</strong> ${status}<br>
+                    <small>${message}</small>
+                </div>
+            `;
+        }
+        
+        // Автоматический запуск тестов при загрузке страницы
+        window.onload = function() {
+            addTestResult('Загрузка страницы', 'УСПЕХ', 'Страница загружена');
+            testCharts();
+        };
+    </script>
+</body>
+</html>
