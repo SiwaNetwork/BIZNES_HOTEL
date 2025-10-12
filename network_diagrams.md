@@ -438,58 +438,58 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "Сценарий 1: Потеря GNSS"
-        GNSS_OK[GNSS сигнал OK<br/>Точность: ±25 нс]
-        GNSS_LOST[Потеря GNSS >30 мин]
-        HOLDOVER[Режим Holdover<br/>Точность: ±1 мс/24ч]
-        EXT_NTP[Внешние NTP сервера<br/>Stratum 2, ±50 мс]
+    subgraph scenario1["Сценарий 1: Потеря GNSS"]
+        GNSS_OK["GNSS сигнал OK<br/>Точность: ±25 нс"]
+        GNSS_LOST["Потеря GNSS >30 мин"]
+        HOLDOVER["Режим Holdover<br/>Точность: ±1 мс/24ч"]
+        EXT_NTP["Внешние NTP сервера<br/>Stratum 2, ±50 мс"]
         
-        GNSS_OK -->|Сбой спутников| GNSS_LOST
+        GNSS_OK -->|"Сбой спутников"| GNSS_LOST
         GNSS_LOST --> HOLDOVER
-        HOLDOVER -->|Если >24ч| EXT_NTP
-        GNSS_LOST -.->|Алерт в течение 5 мин| ADMIN1[Уведомление<br/>администратора]
+        HOLDOVER -->|"Если >24ч"| EXT_NTP
+        GNSS_LOST -.->|"Алерт в течение 5 мин"| ADMIN1["Уведомление<br/>администратора"]
     end
     
-    subgraph "Сценарий 2: Потеря сети"
-        NET_OK[Сеть OK<br/>Связь с мониторингом]
-        NET_LOST[Потеря связи >15 мин]
-        LOCAL_LOG[Локальное логирование<br/>Сохранение данных ≥7 дней]
-        NET_RESTORE[Восстановление связи]
-        SYNC_LOG[Синхронизация логов<br/>с сервером мониторинга]
+    subgraph scenario2["Сценарий 2: Потеря сети"]
+        NET_OK["Сеть OK<br/>Связь с мониторингом"]
+        NET_LOST["Потеря связи >15 мин"]
+        LOCAL_LOG["Локальное логирование<br/>Сохранение данных ≥7 дней"]
+        NET_RESTORE["Восстановление связи"]
+        SYNC_LOG["Синхронизация логов<br/>с сервером мониторинга"]
         
-        NET_OK -->|Сбой канала| NET_LOST
+        NET_OK -->|"Сбой канала"| NET_LOST
         NET_LOST --> LOCAL_LOG
-        NET_LOST -.->|SMS алерт| ADMIN2[Уведомление<br/>администратора]
+        NET_LOST -.->|"SMS алерт"| ADMIN2["Уведомление<br/>администратора"]
         LOCAL_LOG --> NET_RESTORE
         NET_RESTORE --> SYNC_LOG
     end
     
-    subgraph "Сценарий 3: Отказ оборудования"
-        HW_OK[Оборудование OK]
-        HW_FAIL[Отказ Quantum GM]
-        SPARE[Запасные части<br/>в центральном офисе]
-        TEMP_NTP[Временное решение:<br/>внешние NTP сервера]
-        RMA[RMA процедура<br/>Замена оборудования<br/>2-4 недели]
+    subgraph scenario3["Сценарий 3: Отказ оборудования"]
+        HW_OK["Оборудование OK"]
+        HW_FAIL["Отказ Quantum GM"]
+        SPARE["Запасные части<br/>в центральном офисе"]
+        TEMP_NTP2["Временное решение<br/>внешние NTP сервера"]
+        RMA["RMA процедура<br/>Замена оборудования<br/>2-4 недели"]
         
-        HW_OK -->|Аппаратный сбой| HW_FAIL
-        HW_FAIL -->|Немедленно| TEMP_NTP
-        HW_FAIL -->|Использование| SPARE
-        HW_FAIL -.->|Критический алерт| ADMIN3[Уведомление<br/>администратора]
-        HW_FAIL -->|Запуск| RMA
+        HW_OK -->|"Аппаратный сбой"| HW_FAIL
+        HW_FAIL -->|"Немедленно"| TEMP_NTP2
+        HW_FAIL -->|"Использование"| SPARE
+        HW_FAIL -.->|"Критический алерт"| ADMIN3["Уведомление<br/>администратора"]
+        HW_FAIL -->|"Запуск"| RMA
     end
     
-    subgraph "Сценарий 4: Потеря электропитания"
-        POWER_OK[Электропитание OK<br/>220V 60 Гц]
-        POWER_LOST[Отключение питания]
-        UPS[ИБП (UPS)<br/>Автономная работа<br/>30 минут]
-        SHUTDOWN[Корректное выключение<br/>Сохранение настроек]
-        POWER_RESTORE[Восстановление питания]
-        AUTO_START[Автоматический запуск<br/>Восстановление синхронизации<br/>~15-30 минут]
+    subgraph scenario4["Сценарий 4: Потеря электропитания"]
+        POWER_OK["Электропитание OK<br/>220V 60 Гц"]
+        POWER_LOST["Отключение питания"]
+        UPS_DEVICE["ИБП UPS<br/>Автономная работа<br/>30 минут"]
+        SHUTDOWN["Корректное выключение<br/>Сохранение настроек"]
+        POWER_RESTORE["Восстановление питания"]
+        AUTO_START["Автоматический запуск<br/>Восстановление синхронизации<br/>15-30 минут"]
         
-        POWER_OK -->|Сбой электросети| POWER_LOST
-        POWER_LOST --> UPS
-        UPS -->|Если >30 мин| SHUTDOWN
-        POWER_LOST -.->|Алерт| ADMIN4[Уведомление<br/>администратора]
+        POWER_OK -->|"Сбой электросети"| POWER_LOST
+        POWER_LOST --> UPS_DEVICE
+        UPS_DEVICE -->|"Если >30 мин"| SHUTDOWN
+        POWER_LOST -.->|"Алерт"| ADMIN4["Уведомление<br/>администратора"]
         SHUTDOWN --> POWER_RESTORE
         POWER_RESTORE --> AUTO_START
     end
