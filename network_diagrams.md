@@ -58,9 +58,9 @@ graph TB
         GM2 -->|≥10 Мбит/с, ≤50 мс| ETECSA
         GM3 -->|≥10 Мбит/с, ≤50 мс| ETECSA
         ETECSA -->|Центральный офис| MON
-        MON -.->|SNMP/Syslog| GM1
-        MON -.->|SNMP/Syslog| GM2
-        MON -.->|SNMP/Syslog| GM3
+        MON -.->|API/Syslog| GM1
+        MON -.->|API/Syslog| GM2
+        MON -.->|API/Syslog| GM3
     end
     
     subgraph "РОССИЯ"
@@ -184,7 +184,7 @@ graph TB
 │  Система охлаждения:                                             │
 │  ├─ Вентиляторы в серверах                                      │
 │  ├─ Кондиционирование помещения (18-25°C)                       │
-│  └─ Мониторинг температуры через SNMP                           │
+│  └─ Мониторинг температуры через Shiwa Platform                 │
 │                                                                   │
 │  Электропитание:                                                 │
 │  ├─ Основное: 220V 60 Гц с заземлением                          │
@@ -231,9 +231,9 @@ graph TB
         WAN3["ВАРИАНТ А: Выделенный канал<br/>≥10 Мбит/с, ≤50 мс<br/>ИЛИ<br/>ВАРИАНТ Б: Интернет отеля<br/>≥5 Мбит/с, OpenVPN"]
     end
     
-    GM1 -->|SNMP/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN1
-    GM2 -->|SNMP/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN2
-    GM3 -->|SNMP/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN3
+    GM1 -->|API/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN1
+    GM2 -->|API/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN2
+    GM3 -->|API/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN3
     WAN1 --> MON
     WAN2 --> MON
     WAN3 --> MON
@@ -275,7 +275,7 @@ sequenceDiagram
     participant GM as Quantum Grand Master
     participant NTP_CLIENT as NTP Клиент<br/>(сервер/ПК)
     participant PTP_CLIENT as PTP Клиент<br/>(если поддерживается)
-    participant SNMP as SHIWA NETWORK MONITORING<br/>(SNMP/Syslog)
+    participant MON_SYS as SHIWA NETWORK MONITORING<br/>(Sбор метрик/Syslog)
     
     GNSS->>ANT: GPS L1 (1575.42 MHz)<br/>ГЛОНАСС L1 (1602 MHz)
     ANT->>GM: Коаксиальный кабель RG-6<br/>Сигнал + питание (DC bias)
@@ -289,15 +289,15 @@ sequenceDiagram
     GM->>PTP_CLIENT: PTP Sync + Follow_Up (UDP 319)<br/>PTP Delay_Resp (UDP 320)<br/>Точность: ±25-100 нс
     
     loop Мониторинг каждые 5 минут
-        SNMP->>GM: SNMP GET (UDP 161)<br/>OID: 1.3.6.1.4.1.37460
-        GM->>SNMP: SNMP Response<br/>Статус GNSS, offset, jitter
+        MON_SYS->>GM: Запрос метрик<br/>через Shiwa Platform API
+        GM->>MON_SYS: Ответ с метриками<br/>Статус GNSS, offset, jitter
     end
     
     loop События синхронизации
-        GM->>SNMP: Syslog (UDP 514)<br/>Логи синхронизации, алерты
+        GM->>MON_SYS: Syslog (UDP 514)<br/>Логи синхронизации, алерты
     end
     
-    Note over SNMP: Визуализация и алертинг<br/>в реальном времени
+    Note over MON_SYS: Elastic Database + Grafana<br/>Визуализация в реальном времени
 ```
 
 ### 4.1 Типы трафика и приоритеты
@@ -320,13 +320,7 @@ sequenceDiagram
 │     ├─ QoS: DSCP AF41 (Assured Forwarding)                      │
 │     └─ Пропускная способность: ~100-500 запросов/сек           │
 │                                                                   │
-│  3. SNMP - СРЕДНИЙ ПРИОРИТЕТ                                    │
-│     ├─ UDP 161 (запросы к устройству)                          │
-│     ├─ UDP 162 (traps от устройства)                           │
-│     ├─ QoS: DSCP AF21                                           │
-│     └─ Пропускная способность: ~1-10 запросов/мин              │
-│                                                                   │
-│  4. Syslog - СРЕДНИЙ ПРИОРИТЕТ                                  │
+│  3. Syslog - ВЫСОКИЙ ПРИОРИТЕТ                                  │
 │     ├─ UDP 514                                                   │
 │     ├─ QoS: DSCP AF21                                           │
 │     └─ Пропускная способность: ~1-100 сообщений/час            │
@@ -355,41 +349,48 @@ graph TB
     
     subgraph office["Центральный офис Гавана"]
         subgraph monitoring["SHIWA NETWORK MONITORING 192.168.100.50"]
-            TIMEBEAT["Shiwa Management Platform<br/>Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг и визуализация"]
-            DB[("База данных<br/>метрик и конфигурации")]
+            SHIWA["Shiwa Management Platform<br/>Сбор метрик и логов<br/>Алертинг"]
+            ELASTIC[("Elastic Database<br/>Хранение метрик и логов")]
+            GRAFANA_VIS["Grafana<br/>Визуализация и дашборды"]
             
-            TIMEBEAT --> DB
+            SHIWA --> ELASTIC
+            ELASTIC --> GRAFANA_VIS
         end
     end
     
-    GM1 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
-    GM2 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
-    GM3 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
-    GM4 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
+    GM1 -->|"Метрики и статус<br/>Каждые 5 мин"| SHIWA
+    GM2 -->|"Метрики и статус<br/>Каждые 5 мин"| SHIWA
+    GM3 -->|"Метрики и статус<br/>Каждые 5 мин"| SHIWA
+    GM4 -->|"Метрики и статус<br/>Каждые 5 мин"| SHIWA
     
-    GM1 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
-    GM2 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
-    GM3 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
-    GM4 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
+    GM1 -.->|"Syslog UDP 514<br/>События"| SHIWA
+    GM2 -.->|"Syslog UDP 514<br/>События"| SHIWA
+    GM3 -.->|"Syslog UDP 514<br/>События"| SHIWA
+    GM4 -.->|"Syslog UDP 514<br/>События"| SHIWA
     
-    TIMEBEAT -->|"Email/SMS"| ALERTS["Система алертинга<br/>ИТ персонал отелей"]
+    SHIWA -->|"Email/SMS"| ALERTS["Система алертинга<br/>ИТ персонал отелей"]
     
     subgraph rf["Офис РФ"]
         RF_ADMIN["Удалённый<br/>администратор"]
     end
     
-    TIMEBEAT -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
+    GRAFANA_VIS -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
+    SHIWA -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
 
     style GM1 fill:#FFD700
     style GM2 fill:#FFD700
     style GM3 fill:#FFD700
     style GM4 fill:#FFD700
-    style TIMEBEAT fill:#87CEEB
+    style SHIWA fill:#87CEEB
+    style ELASTIC fill:#98D8C8
+    style GRAFANA_VIS fill:#F4A460
     style ALERTS fill:#FF6B6B
     style RF_ADMIN fill:#FFA07A
 ```
 
 ### 5.1 Собираемые метрики
+
+**Способ сбора:** Все метрики собираются через Shiwa Management Platform API и Syslog, хранятся в Elastic Database и визуализируются в Grafana.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -573,9 +574,9 @@ graph TB
         VPN_CLIENT -->|VPN Tunnel<br/>Шифрование| VPN_SERVER
     end
     
-    GM1 -.->|SNMP/Syslog<br/>Через ETECSA| VPN_SERVER
-    GM2 -.->|SNMP/Syslog<br/>Через ETECSA| VPN_SERVER
-    GM3 -.->|SNMP/Syslog<br/>Через ETECSA| VPN_SERVER
+    GM1 -.->|API/Syslog<br/>Через ETECSA| VPN_SERVER
+    GM2 -.->|API/Syslog<br/>Через ETECSA| VPN_SERVER
+    GM3 -.->|API/Syslog<br/>Через ETECSA| VPN_SERVER
 
     style FW1 fill:#FF6B6B
     style FW2 fill:#FF6B6B
@@ -615,17 +616,7 @@ graph TB
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 3: SNMP (Мониторинг)                                ││
-│  │  ├─ Источник: SHIWA NETWORK MONITORING (192.168.100.50)    ││
-│  │  ├─ Назначение: Quantum GM (192.168.X.10)                   ││
-│  │  ├─ Протокол: UDP                                            ││
-│  │  ├─ Порт: 161                                                ││
-│  │  ├─ Действие: РАЗРЕШИТЬ                                     ││
-│  │  └─ Логирование: Выключено (много запросов)                ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 4: NTP (Синхронизация локальная)                    ││
+│  │ Правило 3: NTP (Синхронизация локальная)                    ││
 │  │  ├─ Источник: Локальная сеть (192.168.X.0/24)              ││
 │  │  ├─ Назначение: Quantum GM (192.168.X.10)                   ││
 │  │  ├─ Протокол: UDP                                            ││
@@ -635,7 +626,7 @@ graph TB
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 5: PTP (Синхронизация локальная)                    ││
+│  │ Правило 4: PTP (Синхронизация локальная)                    ││
 │  │  ├─ Источник: Локальная сеть (192.168.X.0/24)              ││
 │  │  ├─ Назначение: Quantum GM (192.168.X.10)                   ││
 │  │  ├─ Протокол: UDP                                            ││
@@ -645,7 +636,7 @@ graph TB
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 6: Всё остальное                                     ││
+│  │ Правило 5: Всё остальное                                     ││
 │  │  ├─ Источник: Любой                                          ││
 │  │  ├─ Назначение: Quantum GM (192.168.X.10)                   ││
 │  │  ├─ Протокол: Любой                                          ││
@@ -657,7 +648,7 @@ graph TB
 │  🔓 ИСХОДЯЩИЙ ТРАФИК (Outbound)                                 │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 7: Syslog (Логирование)                             ││
+│  │ Правило 6: Syslog (Логирование и мониторинг)                ││
 │  │  ├─ Источник: Quantum GM (192.168.X.10)                     ││
 │  │  ├─ Назначение: SHIWA NETWORK MONITORING (192.168.100.50)  ││
 │  │  ├─ Протокол: UDP                                            ││
@@ -667,17 +658,17 @@ graph TB
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 8: SNMP Traps (Алерты)                              ││
+│  │ Правило 7: HTTPS API (Передача метрик)                      ││
 │  │  ├─ Источник: Quantum GM (192.168.X.10)                     ││
 │  │  ├─ Назначение: SHIWA NETWORK MONITORING (192.168.100.50)  ││
-│  │  ├─ Протокол: UDP                                            ││
-│  │  ├─ Порт: 162                                                ││
+│  │  ├─ Протокол: TCP                                            ││
+│  │  ├─ Порт: 443                                                ││
 │  │  ├─ Действие: РАЗРЕШИТЬ                                     ││
-│  │  └─ Логирование: Включено                                   ││
+│  │  └─ Логирование: Выключено                                  ││
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 9: DNS (Резолвинг имён)                             ││
+│  │ Правило 8: DNS (Резолвинг имён)                             ││
 │  │  ├─ Источник: Quantum GM (192.168.X.10)                     ││
 │  │  ├─ Назначение: DNS-сервер отеля                            ││
 │  │  ├─ Протокол: UDP                                            ││
@@ -687,7 +678,7 @@ graph TB
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Правило 10: Всё остальное                                    ││
+│  │ Правило 9: Всё остальное                                     ││
 │  │  ├─ Источник: Quantum GM (192.168.X.10)                     ││
 │  │  ├─ Назначение: Любой                                        ││
 │  │  ├─ Протокол: Любой                                          ││
