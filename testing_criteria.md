@@ -355,7 +355,7 @@
 ## 🔍 Методы мониторинга и анализа
 
 ### Инструменты мониторинга и тестирования:
-1. **SHIWA NETWORK MONITORING** - мониторинг и управление всеми серверами времени (Timebeat Management Platform)
+1. **SHIWA NETWORK MONITORING** - мониторинг и управление всеми серверами времени (Shiwa Management Platform)
 2. **SHIWA NETWORK MONITORING** - сбор метрик, алертинг и визуализация данных
 3. **Wireshark** - анализ сетевого трафика NTP/PTP между объектами
    - Захват и декодирование NTP пакетов (UDP 123)

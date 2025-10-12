@@ -164,7 +164,7 @@ graph TB
 │  ├──────────────────────────────────────────────────────┤       │
 │  │ 4U  │ SHIWA NETWORK MONITORING (Ubuntu 22.04 LTS)   │       │
 │  │     │ IP: 192.168.100.50/24                          │       │
-│  │     │ Timebeat Management Platform                   │       │
+│  │     │ Shiwa Management Platform                      │       │
 │  ├──────────────────────────────────────────────────────┤       │
 │  │ 5U  │                                                 │       │
 │  ├──────────────────────────────────────────────────────┤       │
@@ -355,7 +355,7 @@ graph TB
     
     subgraph office["Центральный офис Гавана"]
         subgraph monitoring["SHIWA NETWORK MONITORING 192.168.100.50"]
-            TIMEBEAT["Timebeat Management Platform<br/>Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг и визуализация"]
+            TIMEBEAT["Shiwa Management Platform<br/>Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг и визуализация"]
             DB[("База данных<br/>метрик и конфигурации")]
             
             TIMEBEAT --> DB

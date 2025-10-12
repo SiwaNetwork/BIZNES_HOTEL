@@ -121,7 +121,7 @@
   - Настройка NTP и PTP сервисов
 - **Установка и настройка SHIWA NETWORK MONITORING:**
   - ОС: Ubuntu Server 22.04 LTS
-  - Программное обеспечение: Timebeat Management Platform, PTP/NTP клиент, SNMP клиент
+  - Программное обеспечение: Shiwa Management Platform, PTP/NTP клиент, SNMP клиент
   - Настройка мониторинга всех четырёх Grand Master серверов (3 отеля + офис)
   - Сбор метрик: offset времени, jitter, статус GNSS, температура
   - Настройка алертинга (email/SMS при потере синхронизации)
@@ -203,13 +203,13 @@
 
 **Серверная стойка и SHIWA NETWORK MONITORING:**
 - **Серверная стойка:** 19" 20U с монтажными аксессуарами
-- **SHIWA NETWORK MONITORING:** Ubuntu Server 22.04 LTS с Timebeat Management Platform
+- **SHIWA NETWORK MONITORING:** Ubuntu Server 22.04 LTS с Shiwa Management Platform
 - **Дополнительное оборудование:** KVM-консоль, ИБП, система охлаждения
 
 **SHIWA NETWORK MONITORING:**
 - **ОС:** Ubuntu Server 22.04 LTS
 - **Программное обеспечение:**
-  - Timebeat Management Platform (мониторинг и управление)
+  - Shiwa Management Platform (мониторинг и управление)
   - PTP4L (для PTP клиента)
   - Chrony/NTPsec (NTP клиент)
   - SNMP клиент (для опроса устройств)
