@@ -44,7 +44,7 @@ graph TB
         subgraph "Центральный офис - Гавана"
             ANT4[GNSS Антенна GPS+ГЛОНАСС]
             GM4[Quantum Grand Master 4<br/>192.168.100.10]
-            MON[SHIWA TIME MONITORING<br/>192.168.100.50]
+            MON[SHIWA NETWORK MONITORING<br/>192.168.100.50]
             RACK[Серверная стойка 20U<br/>с системой охлаждения и ИБП]
             ANT4 -->|RG-6/LMR-400| GM4
             GM4 -.->|Мониторинг| MON
@@ -162,9 +162,9 @@ graph TB
 │  ├──────────────────────────────────────────────────────┤       │
 │  │ 3U  │                                                 │       │
 │  ├──────────────────────────────────────────────────────┤       │
-│  │ 4U  │ SHIWA TIME MONITORING (Ubuntu 22.04 LTS)      │       │
+│  │ 4U  │ SHIWA NETWORK MONITORING (Ubuntu 22.04 LTS)   │       │
 │  │     │ IP: 192.168.100.50/24                          │       │
-│  │     │ Zabbix Server + Grafana                        │       │
+│  │     │ Timebeat Management Platform                   │       │
 │  ├──────────────────────────────────────────────────────┤       │
 │  │ 5U  │                                                 │       │
 │  ├──────────────────────────────────────────────────────┤       │
@@ -219,7 +219,7 @@ graph TB
     
     subgraph "Центральный офис - Гавана"
         GM4["🕐 Quantum GM 4<br/>192.168.100.10/24<br/>Gateway: 192.168.100.1<br/>Stratum: 1"]
-        MON["📊 SHIWA TIME MONITORING<br/>192.168.100.50/24<br/>VPN Server"]
+        MON["📊 SHIWA NETWORK MONITORING<br/>192.168.100.50/24<br/>VPN Server"]
         OFFICE_NET["Подсеть офиса: 192.168.100.0/24<br/>VPN подсеть: 10.100.0.0/24"]
         GM4 -.->|NTP/PTP| OFFICE_NET
         MON --> OFFICE_NET
@@ -260,7 +260,7 @@ graph TB
 | **Гавана (Cohiba)** | Quantum GM 2 | 192.168.2.10 | /24 | 192.168.2.1 | [DNS отеля] | Grand Master 2 |
 | **Гавана (Nacional)** | Quantum GM 3 | 192.168.3.10 | /24 | 192.168.3.1 | [DNS отеля] | Grand Master 3 |
 | **Офис Гавана** | Quantum GM 4 | 192.168.100.10 | /24 | 192.168.100.1 | 8.8.8.8 | Grand Master 4 |
-| **Офис Гавана** | SHIWA TIME MONITORING | 192.168.100.50 | /24 | 192.168.100.1 | 8.8.8.8 | Система мониторинга |
+| **Офис Гавана** | SHIWA NETWORK MONITORING | 192.168.100.50 | /24 | 192.168.100.1 | 8.8.8.8 | Система мониторинга |
 | **VPN подсеть** | VPN пул | 10.100.0.0 | /24 | 10.100.0.1 | - | VPN клиенты |
 | **Офис РФ** | VPN клиент | 10.100.0.100 | /24 | 10.100.0.1 | - | Удалённый доступ |
 
@@ -275,7 +275,7 @@ sequenceDiagram
     participant GM as Quantum Grand Master
     participant NTP_CLIENT as NTP Клиент<br/>(сервер/ПК)
     participant PTP_CLIENT as PTP Клиент<br/>(если поддерживается)
-    participant SNMP as SHIWA TIME MONITORING<br/>(SNMP/Syslog)
+    participant SNMP as SHIWA NETWORK MONITORING<br/>(SNMP/Syslog)
     
     GNSS->>ANT: GPS L1 (1575.42 MHz)<br/>ГЛОНАСС L1 (1602 MHz)
     ANT->>GM: Коаксиальный кабель RG-6<br/>Сигнал + питание (DC bias)
@@ -354,41 +354,37 @@ graph TB
     end
     
     subgraph office["Центральный офис Гавана"]
-        subgraph monitoring["SHIWA TIME MONITORING 192.168.100.50"]
-            ZABBIX["Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг Zabbix"]
-            GRAFANA["Визуализация<br/>Дашборды Grafana"]
-            DB[("PostgreSQL<br/>База данных метрик")]
+        subgraph monitoring["SHIWA NETWORK MONITORING 192.168.100.50"]
+            TIMEBEAT["Timebeat Management Platform<br/>Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг и визуализация"]
+            DB[("База данных<br/>метрик и конфигурации")]
             
-            ZABBIX --> DB
-            GRAFANA --> DB
+            TIMEBEAT --> DB
         end
     end
     
-    GM1 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
-    GM2 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
-    GM3 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
-    GM4 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
+    GM1 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
+    GM2 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
+    GM3 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
+    GM4 -->|"SNMP UDP 161<br/>Каждые 5 мин"| TIMEBEAT
     
-    GM1 -.->|"Syslog UDP 514<br/>События"| ZABBIX
-    GM2 -.->|"Syslog UDP 514<br/>События"| ZABBIX
-    GM3 -.->|"Syslog UDP 514<br/>События"| ZABBIX
-    GM4 -.->|"Syslog UDP 514<br/>События"| ZABBIX
+    GM1 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
+    GM2 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
+    GM3 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
+    GM4 -.->|"Syslog UDP 514<br/>События"| TIMEBEAT
     
-    ZABBIX -->|"Email/SMS"| ALERTS["Система алертинга<br/>ИТ персонал отелей"]
+    TIMEBEAT -->|"Email/SMS"| ALERTS["Система алертинга<br/>ИТ персонал отелей"]
     
     subgraph rf["Офис РФ"]
         RF_ADMIN["Удалённый<br/>администратор"]
     end
     
-    GRAFANA -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
-    ZABBIX -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
+    TIMEBEAT -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
 
     style GM1 fill:#FFD700
     style GM2 fill:#FFD700
     style GM3 fill:#FFD700
     style GM4 fill:#FFD700
-    style ZABBIX fill:#87CEEB
-    style GRAFANA fill:#87CEEB
+    style TIMEBEAT fill:#87CEEB
     style ALERTS fill:#FF6B6B
     style RF_ADMIN fill:#FFA07A
 ```
@@ -561,7 +557,7 @@ graph TB
         FW4[Firewall офиса]
         VPN_SERVER[VPN Server<br/>OpenVPN<br/>AES-256-GCM]
         GM4[Quantum GM 4<br/>192.168.100.10]
-        MON[SHIWA TIME MONITORING<br/>192.168.100.50]
+        MON[SHIWA NETWORK MONITORING<br/>192.168.100.50]
         
         INTERNET --> FW4
         FW4 --> VPN_SERVER
@@ -620,7 +616,7 @@ graph TB
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Правило 3: SNMP (Мониторинг)                                ││
-│  │  ├─ Источник: SHIWA TIME MONITORING (192.168.100.50)       ││
+│  │  ├─ Источник: SHIWA NETWORK MONITORING (192.168.100.50)    ││
 │  │  ├─ Назначение: Quantum GM (192.168.X.10)                   ││
 │  │  ├─ Протокол: UDP                                            ││
 │  │  ├─ Порт: 161                                                ││
@@ -663,7 +659,7 @@ graph TB
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Правило 7: Syslog (Логирование)                             ││
 │  │  ├─ Источник: Quantum GM (192.168.X.10)                     ││
-│  │  ├─ Назначение: SHIWA TIME MONITORING (192.168.100.50)     ││
+│  │  ├─ Назначение: SHIWA NETWORK MONITORING (192.168.100.50)  ││
 │  │  ├─ Протокол: UDP                                            ││
 │  │  ├─ Порт: 514                                                ││
 │  │  ├─ Действие: РАЗРЕШИТЬ                                     ││
@@ -673,7 +669,7 @@ graph TB
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Правило 8: SNMP Traps (Алерты)                              ││
 │  │  ├─ Источник: Quantum GM (192.168.X.10)                     ││
-│  │  ├─ Назначение: SHIWA TIME MONITORING (192.168.100.50)     ││
+│  │  ├─ Назначение: SHIWA NETWORK MONITORING (192.168.100.50)  ││
 │  │  ├─ Протокол: UDP                                            ││
 │  │  ├─ Порт: 162                                                ││
 │  │  ├─ Действие: РАЗРЕШИТЬ                                     ││
@@ -759,14 +755,14 @@ graph TB
 │  ├─ 10.100.0.20  - Quantum GM 2 (Гавана Cohiba) - туннель       │
 │  ├─ 10.100.0.30  - Quantum GM 3 (Гавана Nacional) - туннель     │
 │  ├─ 10.100.0.40  - Quantum GM 4 (офис Гавана) - локально        │
-│  ├─ 10.100.0.50  - SHIWA TIME MONITORING - локально             │
+│  ├─ 10.100.0.50  - SHIWA NETWORK MONITORING - локально          │
 │  └─ 10.100.0.100 - VPN Client (офис РФ)                         │
 │                                                                   │
 │  🔄 МАРШРУТИЗАЦИЯ                                                │
 │                                                                   │
 │  Офис РФ (10.100.0.100) может достучаться до:                   │
 │  ├─ Все Quantum GM через VPN (10.100.0.10-40)                   │
-│  ├─ SHIWA TIME MONITORING (10.100.0.50)                         │
+│  ├─ SHIWA NETWORK MONITORING (10.100.0.50)                      │
 │  ├─ Веб-интерфейс системы мониторинга (HTTPS)                   │
 │  └─ SSH к любому Quantum GM для управления                       │
 │                                                                   │
@@ -791,7 +787,7 @@ graph TB
 - **Пунктирные линии (-.->)** - мониторинг и управление
 - **Толстые линии (═>)** - высокоприоритетный трафик
 - **🕐** - Quantum Grand Master (сервер точного времени)
-- **📊** - SHIWA TIME MONITORING (система мониторинга)
+- **📊** - SHIWA NETWORK MONITORING (система мониторинга)
 - **🔒** - Firewall / Система безопасности
 - **🌐** - VPN / Удалённое подключение
 - **📡** - GNSS антенна
@@ -799,7 +795,7 @@ graph TB
 ### Цветовая кодировка:
 
 - **🟡 Жёлтый (#FFD700)** - Quantum Grand Master серверы
-- **🔵 Голубой (#87CEEB)** - SHIWA TIME MONITORING
+- **🔵 Голубой (#87CEEB)** - SHIWA NETWORK MONITORING
 - **🟢 Зелёный (#90EE90)** - GNSS антенны, VPN
 - **🔴 Красный (#FF6B6B)** - Критические состояния, Firewall
 - **🟠 Оранжевый (#FFA07A)** - Офис РФ, удалённый доступ
