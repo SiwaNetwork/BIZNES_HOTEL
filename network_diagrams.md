@@ -67,7 +67,7 @@ graph TB
         RF_OFFICE[Офис РФ<br/>Удалённый мониторинг]
     end
     
-    MON -->|VPN IPsec/WireGuard<br/>AES-256-GCM| RF_OFFICE
+    MON -->|VPN OpenVPN<br/>AES-256-GCM| RF_OFFICE
 
     style ANT1 fill:#90EE90
     style ANT2 fill:#90EE90
@@ -241,7 +241,7 @@ graph TB
         RF["🌐 Офис РФ<br/>VPN IP: 10.100.0.100"]
     end
     
-    MON -->|"VPN IPsec/WireGuard<br/>10.100.0.0/24<br/>Шифрование: AES-256-GCM"| RF
+    MON -->|"VPN OpenVPN<br/>10.100.0.0/24<br/>Шифрование: AES-256-GCM"| RF
 
     style GM1 fill:#FFD700
     style GM2 fill:#FFD700
@@ -558,7 +558,7 @@ graph TB
     
     subgraph "Центральный офис - Гавана"
         FW4[Firewall офиса]
-        VPN_SERVER[VPN Server<br/>IPsec/WireGuard<br/>AES-256-GCM]
+        VPN_SERVER[VPN Server<br/>OpenVPN<br/>AES-256-GCM]
         GM4[Quantum GM 4<br/>192.168.100.10]
         MON[Сервер мониторинга<br/>192.168.100.50<br/>Zabbix + Grafana]
         
@@ -709,37 +709,42 @@ graph TB
 │                    VPN КОНФИГУРАЦИЯ                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                   │
-│  🔐 ПАРАМЕТРЫ VPN (IPsec или WireGuard)                         │
+│  🔐 ПАРАМЕТРЫ VPN (OpenVPN)                                      │
 │                                                                   │
 │  Тип VPN: Site-to-Site VPN                                       │
-│  Протокол: IPsec (IKEv2) или WireGuard                          │
+│  Протокол: OpenVPN (TCP или UDP)                                 │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ IPsec (IKEv2) - Рекомендуемая конфигурация                  ││
+│  │ OpenVPN - Рекомендуемая конфигурация                        ││
 │  │                                                               ││
-│  │  IKE Phase 1:                                                 ││
+│  │  Основные параметры:                                          ││
+│  │  ├─ Протокол: UDP 1194 (стандартный порт)                   ││
+│  │  ├─ Режим: TUN (маршрутизируемый IP туннель)                ││
 │  │  ├─ Encryption: AES-256-GCM                                  ││
-│  │  ├─ Integrity: SHA-256                                       ││
-│  │  ├─ DH Group: 14 (2048-bit)                                  ││
-│  │  ├─ Lifetime: 28800 sec (8 часов)                           ││
-│  │  └─ Authentication: PSK или RSA сертификаты                 ││
+│  │  ├─ Authentication: HMAC SHA-256                             ││
+│  │  ├─ Control Channel: TLS 1.3                                 ││
+│  │  ├─ DH Key: 2048-bit (или ECDH)                             ││
+│  │  └─ Compression: LZ4 (опционально)                          ││
 │  │                                                               ││
-│  │  IKE Phase 2 (ESP):                                           ││
-│  │  ├─ Encryption: AES-256-GCM                                  ││
-│  │  ├─ Integrity: SHA-256                                       ││
-│  │  ├─ PFS: DH Group 14                                         ││
-│  │  ├─ Lifetime: 3600 sec (1 час)                              ││
-│  │  └─ Compression: Disabled                                    ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ WireGuard - Альтернативная конфигурация                     ││
+│  │  Аутентификация:                                              ││
+│  │  ├─ Метод: Сертификаты X.509 (RSA 2048-bit)                ││
+│  │  ├─ CA: Центр сертификации для выдачи сертификатов         ││
+│  │  ├─ Server Certificate: Сертификат сервера                  ││
+│  │  ├─ Client Certificates: Индивидуальные сертификаты        ││
+│  │  └─ TLS Auth: Дополнительный ключ HMAC для защиты          ││
 │  │                                                               ││
-│  │  ├─ Encryption: ChaCha20-Poly1305                           ││
-│  │  ├─ Authentication: Curve25519 для обмена ключами           ││
-│  │  ├─ Порт: UDP 51820 (стандартный)                           ││
-│  │  ├─ MTU: 1420 (для избежания фрагментации)                 ││
-│  │  └─ Keepalive: 25 секунд (для NAT traversal)               ││
+│  │  Безопасность:                                                ││
+│  │  ├─ Cipher: AES-256-GCM (без CBC уязвимостей)              ││
+│  │  ├─ TLS Version: TLS 1.3 (минимум TLS 1.2)                 ││
+│  │  ├─ Perfect Forward Secrecy (PFS): Включено                 ││
+│  │  ├─ Keepalive: 10 секунд ping, 60 секунд timeout           ││
+│  │  └─ MTU: 1500 (с fragment 1300 для избежания проблем)      ││
+│  │                                                               ││
+│  │  Сетевые настройки:                                           ││
+│  │  ├─ Подсеть туннеля: 10.100.0.0/24                          ││
+│  │  ├─ Server IP: 10.100.0.1                                    ││
+│  │  ├─ Push routes: Маршруты к локальным сетям отелей         ││
+│  │  └─ DNS: Push DNS серверов для клиентов                     ││
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                   │
 │  📡 VPN ПОДСЕТЬ                                                  │
