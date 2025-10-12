@@ -225,15 +225,15 @@ graph TB
         MON --> OFFICE_NET
     end
     
-    subgraph "Каналы связи ETECSA"
-        WAN1["Канал 1: Варадеро ↔ Гавана<br/>≥10 Мбит/с, ≤50 мс"]
-        WAN2["Канал 2: Meliá Cohiba ↔ Офис<br/>≥10 Мбит/с, ≤50 мс"]
-        WAN3["Канал 3: Hotel Nacional ↔ Офис<br/>≥10 Мбит/с, ≤50 мс"]
+    subgraph "Каналы связи (опционально)"
+        WAN1["ВАРИАНТ А: Выделенный канал<br/>≥10 Мбит/с, ≤50 мс<br/>ИЛИ<br/>ВАРИАНТ Б: Интернет отеля<br/>≥5 Мбит/с, OpenVPN"]
+        WAN2["ВАРИАНТ А: Выделенный канал<br/>≥10 Мбит/с, ≤50 мс<br/>ИЛИ<br/>ВАРИАНТ Б: Интернет отеля<br/>≥5 Мбит/с, OpenVPN"]
+        WAN3["ВАРИАНТ А: Выделенный канал<br/>≥10 Мбит/с, ≤50 мс<br/>ИЛИ<br/>ВАРИАНТ Б: Интернет отеля<br/>≥5 Мбит/с, OpenVPN"]
     end
     
-    GM1 -->|SNMP/Syslog<br/>SSH/HTTPS| WAN1
-    GM2 -->|SNMP/Syslog<br/>SSH/HTTPS| WAN2
-    GM3 -->|SNMP/Syslog<br/>SSH/HTTPS| WAN3
+    GM1 -->|SNMP/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN1
+    GM2 -->|SNMP/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN2
+    GM3 -->|SNMP/Syslog<br/>SSH/HTTPS<br/>через VPN| WAN3
     WAN1 --> MON
     WAN2 --> MON
     WAN3 --> MON
