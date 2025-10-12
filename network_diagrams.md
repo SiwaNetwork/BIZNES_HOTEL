@@ -346,42 +346,42 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph "Источники данных"
-        GM1[Quantum GM 1<br/>Варадеро]
-        GM2[Quantum GM 2<br/>Гавана Cohiba]
-        GM3[Quantum GM 3<br/>Гавана Nacional]
-        GM4[Quantum GM 4<br/>Офис Гавана]
+    subgraph sources["Источники данных"]
+        GM1["Quantum GM 1<br/>Варадеро"]
+        GM2["Quantum GM 2<br/>Гавана Cohiba"]
+        GM3["Quantum GM 3<br/>Гавана Nacional"]
+        GM4["Quantum GM 4<br/>Офис Гавана"]
     end
     
-    subgraph "Центральный офис - Гавана"
-        subgraph "SHIWA TIME MONITORING 192.168.100.50"
-            ZABBIX["Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг<br/>на базе Zabbix"]
-            GRAFANA["Визуализация<br/>Дашборды<br/>на базе Grafana"]
-            DB[("PostgreSQL<br/>База данных<br/>метрик")]
+    subgraph office["Центральный офис Гавана"]
+        subgraph monitoring["SHIWA TIME MONITORING 192.168.100.50"]
+            ZABBIX["Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг Zabbix"]
+            GRAFANA["Визуализация<br/>Дашборды Grafana"]
+            DB[("PostgreSQL<br/>База данных метрик")]
             
             ZABBIX --> DB
             GRAFANA --> DB
         end
     end
     
-    GM1 -->|SNMP UDP 161<br/>Каждые 5 мин| ZABBIX
-    GM2 -->|SNMP UDP 161<br/>Каждые 5 мин| ZABBIX
-    GM3 -->|SNMP UDP 161<br/>Каждые 5 мин| ZABBIX
-    GM4 -->|SNMP UDP 161<br/>Каждые 5 мин| ZABBIX
+    GM1 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
+    GM2 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
+    GM3 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
+    GM4 -->|"SNMP UDP 161<br/>Каждые 5 мин"| ZABBIX
     
-    GM1 -.->|Syslog UDP 514<br/>События| ZABBIX
-    GM2 -.->|Syslog UDP 514<br/>События| ZABBIX
-    GM3 -.->|Syslog UDP 514<br/>События| ZABBIX
-    GM4 -.->|Syslog UDP 514<br/>События| ZABBIX
+    GM1 -.->|"Syslog UDP 514<br/>События"| ZABBIX
+    GM2 -.->|"Syslog UDP 514<br/>События"| ZABBIX
+    GM3 -.->|"Syslog UDP 514<br/>События"| ZABBIX
+    GM4 -.->|"Syslog UDP 514<br/>События"| ZABBIX
     
-    ZABBIX -->|Email/SMS| ALERTS[Система алертинга<br/>ИТ-персонал отелей]
+    ZABBIX -->|"Email/SMS"| ALERTS["Система алертинга<br/>ИТ персонал отелей"]
     
-    subgraph "Офис РФ"
-        RF_ADMIN[Удалённый<br/>администратор]
+    subgraph rf["Офис РФ"]
+        RF_ADMIN["Удалённый<br/>администратор"]
     end
     
-    GRAFANA -->|VPN HTTPS<br/>10.100.0.0/24| RF_ADMIN
-    ZABBIX -->|VPN HTTPS<br/>10.100.0.0/24| RF_ADMIN
+    GRAFANA -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
+    ZABBIX -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
 
     style GM1 fill:#FFD700
     style GM2 fill:#FFD700
