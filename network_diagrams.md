@@ -355,9 +355,9 @@ graph TB
     
     subgraph "Центральный офис - Гавана"
         subgraph "SHIWA TIME MONITORING 192.168.100.50"
-            ZABBIX[Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг<br/>(Zabbix)]
-            GRAFANA[Визуализация<br/>Дашборды<br/>(Grafana)]
-            DB[(PostgreSQL<br/>База данных<br/>метрик)]
+            ZABBIX["Сбор метрик SNMP<br/>Получение Syslog<br/>Алертинг<br/>на базе Zabbix"]
+            GRAFANA["Визуализация<br/>Дашборды<br/>на базе Grafana"]
+            DB[("PostgreSQL<br/>База данных<br/>метрик")]
             
             ZABBIX --> DB
             GRAFANA --> DB
