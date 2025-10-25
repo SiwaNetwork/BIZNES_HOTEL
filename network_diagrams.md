@@ -67,7 +67,7 @@ graph TB
         RF_OFFICE[Офис РФ<br/>Удалённый мониторинг]
     end
     
-    MON -->|VPN OpenVPN<br/>AES-256-GCM| RF_OFFICE
+    MON -->|OpenVPN (10.100.0.0/24)\nAES-256-GCM| RF_OFFICE
 
     style ANT1 fill:#90EE90
     style ANT2 fill:#90EE90
@@ -184,7 +184,7 @@ graph TB
 │  Система охлаждения:                                             │
 │  ├─ Вентиляторы в серверах                                      │
 │  ├─ Кондиционирование помещения (18-25°C)                       │
-│  └─ Мониторинг температуры через Shiwa Platform                 │
+│  └─ Мониторинг температуры через Shiwa Management Platform      │
 │                                                                   │
 │  Электропитание:                                                 │
 │  ├─ Основное: 220V 60 Гц с заземлением                          │
@@ -290,7 +290,7 @@ sequenceDiagram
     GM->>PTP_CLIENT: PTP Sync + Follow_Up (UDP 319)<br/>PTP Delay_Resp (UDP 320)<br/>Точность: ±25-100 нс
     
     loop Мониторинг каждые 5 минут
-        MON_SYS->>GM: Запрос метрик<br/>через Shiwa Platform API
+        MON_SYS->>GM: Запрос метрик<br/>через Shiwa Management Platform API
         GM->>MON_SYS: Ответ с метриками<br/>Статус GNSS, offset, jitter
     end
     
@@ -317,12 +317,12 @@ sequenceDiagram
 │                                                                   │
 │  2. NTP - ВЫСОКИЙ ПРИОРИТЕТ                                     │
 │     ├─ UDP 123                                                   │
-│     ├─ Broadcast: xxx.xxx.xxx.255:123                          │
+│     ├─ Broadcast: см. таблицу IP адресации раздел 3.1          │
 │     ├─ QoS: DSCP AF41 (Assured Forwarding)                      │
 │     └─ Пропускная способность: ~100-500 запросов/сек           │
 │                                                                   │
 │  3. Syslog - ВЫСОКИЙ ПРИОРИТЕТ                                  │
-│     ├─ UDP 514                                                   │
+│     ├─ TCP 6514 (предпочтительно, TLS) / UDP 514                 │
 │     ├─ QoS: DSCP AF21                                           │
 │     └─ Пропускная способность: ~1-100 сообщений/час            │
 │                                                                   │
@@ -375,8 +375,8 @@ graph TB
         RF_ADMIN["Удалённый<br/>администратор"]
     end
     
-    GRAFANA_VIS -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
-    SHIWA -->|"VPN HTTPS<br/>10.100.0.0/24"| RF_ADMIN
+    GRAFANA_VIS -->|"OpenVPN (10.100.0.0/24)\nHTTPS внутри VPN"| RF_ADMIN
+    SHIWA -->|"OpenVPN (10.100.0.0/24)\nHTTPS внутри VPN"| RF_ADMIN
 
     style GM1 fill:#FFD700
     style GM2 fill:#FFD700
