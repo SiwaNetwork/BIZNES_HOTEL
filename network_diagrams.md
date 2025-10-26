@@ -67,7 +67,7 @@ graph TB
         RF_OFFICE[Офис РФ<br/>Удалённый мониторинг]
     end
     
-    MON -->|OpenVPN (10.100.0.0/24)\nAES-256-GCM| RF_OFFICE
+    MON -->|"OpenVPN (10.100.0.0/24)<br/>AES-256-GCM"| RF_OFFICE
 
     style ANT1 fill:#90EE90
     style ANT2 fill:#90EE90
@@ -375,8 +375,8 @@ graph TB
         RF_ADMIN["Удалённый<br/>администратор"]
     end
     
-    GRAFANA_VIS -->|"OpenVPN (10.100.0.0/24)\nHTTPS внутри VPN"| RF_ADMIN
-    SHIWA -->|"OpenVPN (10.100.0.0/24)\nHTTPS внутри VPN"| RF_ADMIN
+    GRAFANA_VIS -->|"OpenVPN (10.100.0.0/24)<br/>HTTPS внутри VPN"| RF_ADMIN
+    SHIWA -->|"OpenVPN (10.100.0.0/24)<br/>HTTPS внутри VPN"| RF_ADMIN
 
     style GM1 fill:#FFD700
     style GM2 fill:#FFD700
