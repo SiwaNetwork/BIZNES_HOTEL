@@ -106,11 +106,15 @@ class Pen:
         else:
             self.text(x + w / 2, y + h / 2 - th * 0.36, s, th, "c", font)
 
+    STD_H = (10.0, 7.0, 5.0, 3.5, 2.5)
+
     def fit(self, s, max_w, h, font="GOST"):
-        """Уменьшает высоту шрифта, чтобы строка уместилась в max_w."""
-        while h > 1.6 and pdfmetrics.stringWidth(s, font, fs(h)) / mm > max_w:
-            h -= 0.1
-        return h
+        """Подбирает высоту шрифта из ряда ГОСТ 2.304 (не более h), при которой строка умещается в max_w."""
+        for hh in [x for x in self.STD_H if x <= h + 1e-6]:
+            if pdfmetrics.stringWidth(s, font, fs(hh)) / mm <= max_w:
+                return hh
+        print(f"[gost.fit] строка не умещается в {max_w:.1f} мм при 2,5 мм: {s!r}")
+        return 2.5
 
     def arrow(self, x1, y1, x2, y2, w=S3, size=2.5, both=False, filled=True):
         import math
@@ -128,10 +132,8 @@ class Pen:
 
 
 # ------------------------------------------------------------------ рамка
-def frame(pen: Pen, W, H, drawing=True, first=True, code=CODE):
-    """Внешняя рамка листа, поле подшивки 20 мм, дополнительные графы 19–26."""
-    pen.rect(20, 5, W - 25, H - 10, S)
-    # графы 19–23 на поле подшивки (снизу вверх)
+def margin_graphs(pen: Pen):
+    """Дополнительные графы 19–23 на поле подшивки (снизу вверх)."""
     y = 5
     for label, h in (("Инв. № подл.", 25), ("Подп. и дата", 35), ("Взам. инв. №", 25),
                      ("Инв. № дубл.", 25), ("Подп. и дата", 35)):
@@ -139,6 +141,16 @@ def frame(pen: Pen, W, H, drawing=True, first=True, code=CODE):
         pen.line(13, y, 13, y + h, S)
         pen.ctext(8, y, 5, h, label, 2.5, rot=90)
         y += h
+
+
+def frame(pen: Pen, W, H, drawing=True, first=True, code=CODE, first_use="", fmt=None):
+    """Рамка листа (поле подшивки 20 мм), графы 19–26, графы 31–32 под рамкой.
+
+    first_use — обозначение изделия, в котором документ (деталь) применён впервые (графа 25),
+    пусто — графа не заполняется; fmt — обозначение формата для графы 32.
+    """
+    pen.rect(20, 5, W - 25, H - 10, S)
+    margin_graphs(pen)
     if drawing and first:
         # графы 24, 25 — «Перв. примен.», «Справ. №»
         y = H - 5
@@ -147,11 +159,16 @@ def frame(pen: Pen, W, H, drawing=True, first=True, code=CODE):
             pen.line(13, y - 60, 13, y, S)
             pen.ctext(8, y - 60, 5, 60, label, 2.5, rot=90)
             y -= 60
-        pen.text(13 + 4.6, H - 5 - 30, code, 2.5, "c", rot=90)
+        if first_use:
+            pen.text(13 + 4.6, H - 5 - 30, first_use, 2.5, "c", rot=90)
     if first:
         # графа 26 — обозначение, повёрнутое на 180°
         pen.rect(20, H - 19, 70, 14, S)
         pen.text(55, H - 12 + 1.3, code, 3.5, "c", rot=180)
+    # графы 31 («Копировал») и 32 («Формат») под рамкой
+    fmt = fmt or ("А4" if W < 300 else "А3")
+    pen.text(W - 5 - 120, 1.3, "Копировал", 2.5)
+    pen.text(W - 5 - 45, 1.3, f"Формат {fmt}", 2.5)
 
 
 def _left_block(pen: Pen, x0, y0, n_change_rows, people, form1=True):
@@ -202,10 +219,10 @@ def stamp_form1(pen: Pen, W, name, doc_title="", code=CODE, lit="Т", mass="",
     # графа 1 — наименование
     lines = name.split("\n") + ([doc_title] if doc_title else [])
     n = len(lines)
+    h0 = 5.0 if n == 1 else 3.5
     for i, s in enumerate(lines):
-        h = 3.5 if (doc_title and i == n - 1) else 5
-        h = pen.fit(s, 66, h)
-        pen.text(xr + 35, y0 + 15 + 12.5 + (n - 1) * 3.3 - i * 6.6 - h * 0.36, s, h, "c")
+        h = pen.fit(s, 66, h0)
+        pen.text(xr + 35, y0 + 15 + 12.5 + (n - 1) * 3.0 - i * 6.0 - h * 0.36, s, h, "c")
     # графа 3 — материал
     if material:
         for i, s in enumerate(material.split("\n")):
@@ -246,8 +263,8 @@ def stamp_form2(pen: Pen, W, name, doc_title, code=CODE, lit="Т", sheet="", she
     lines = name.split("\n") + [doc_title]
     n = len(lines)
     for i, s in enumerate(lines):
-        h = pen.fit(s, 66, 3.5 if i == n - 1 else 5)
-        pen.text(xr + 35, y0 + 12.5 + (n - 1) * 3.2 - i * 6.4 - h * 0.36, s, h, "c")
+        h = pen.fit(s, 66, 3.5)
+        pen.text(xr + 35, y0 + 12.5 + (n - 1) * 3.0 - i * 6.0 - h * 0.36, s, h, "c")
     xb = xr + 70
     pen.line(xb, y0 + 20, xb + 50, y0 + 20, S)
     pen.line(xb, y0 + 15, xb + 50, y0 + 15, S)

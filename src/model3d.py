@@ -82,16 +82,18 @@ def shield():
     return s
 
 
-def module_parts(with_shield=True):
+def module_parts(with_shield=True, include_hidden=False):
+    """Детали модуля. include_hidden=True — с элементами под экраном (для STEP)."""
     parts = [("board", board(), "board"), ("pads", pads(), "pad")]
     sh = D.SHIELD
+    skip = with_shield and not include_hidden
     for name, x, y, l, w, h, _, kind in D.COMPONENTS:
         inside = sh["x"] < x < sh["x"] + sh["l"] and sh["y"] < y < sh["y"] + sh["w"]
-        if inside and with_shield:
-            continue   # под экраном — в модели с экраном не показываются
+        if inside and skip:
+            continue   # под экраном — на изображениях не видны
         parts.append((name, comp_solid(name, x, y, l, w, h, kind), kind))
     for i, (x, y, r) in enumerate(D.PASSIVES):
-        if with_shield and sh["x"] < x < sh["x"] + sh["l"] and sh["y"] < y < sh["y"] + sh["w"]:
+        if skip and sh["x"] < x < sh["x"] + sh["l"] and sh["y"] < y < sh["y"] + sh["w"]:
             continue
         l, w = (1.0, 0.5) if r == 0 else (0.5, 1.0)
         parts.append((f"P{i}", cq.Workplane("XY").box(l, w, 0.5, centered=(True, True, False))
@@ -244,18 +246,35 @@ def main(render_only=False):
     OUT.mkdir(exist_ok=True)
     (OUT / "renders").mkdir(exist_ok=True)
     mod = module_parts(True)
+    mod_full = module_parts(True, include_hidden=True)
     mod_open = module_parts(False)
-    ant_origin = (D.BOARD_L / 2, D.BOARD_W + 26.0, 0.0)
-    ant = antenna_parts(ant_origin)
     xw1 = next(c for c in D.COMPONENTS if c[0] == "XW1")
     p0 = (xw1[1], xw1[2], D.BOARD_T + 1.3)
-    p1 = (ant_origin[0] - 10.5, ant_origin[1] - 10.5, -0.8)
+
+    def geometry(dy):
+        origin = (D.BOARD_L / 2, D.BOARD_W + dy, 0.0)
+        p1 = (origin[0] - 10.5, origin[1] - 10.5, -0.8)
+        return origin, p1
+
+    def cable_length(dy):
+        _, p1 = geometry(dy)
+        (x0, y0, z0), (x1, y1, z1) = p0, p1
+        mid = (min(x0, x1) - 2.5, (y0 + y1) / 2, (z0 + z1) / 2 + 1.0)
+        return cq.Workplane("XY").spline([p0, mid, p1], includeCurrent=False).val().Length()
+
+    lo, hi = 5.0, 80.0                      # подбор положения антенны под длину кабеля D.CABLE_LEN
+    for _ in range(40):
+        mid_dy = (lo + hi) / 2
+        lo, hi = (mid_dy, hi) if cable_length(mid_dy) < D.CABLE_LEN else (lo, mid_dy)
+    ant_origin, p1 = geometry((lo + hi) / 2)
+    print(f"кабель: {cable_length((lo + hi) / 2):.1f} мм")
+    ant = antenna_parts(ant_origin)
     cab = cable_parts(p0, p1)
 
     if not render_only:
-        to_assembly(mod, "module").save(str(OUT / "module.step"))
+        to_assembly(mod_full, "module").save(str(OUT / "module.step"))
         to_assembly(antenna_parts(), "antenna_WA1").save(str(OUT / "antenna.step"))
-        to_assembly(mod + ant + cab, "assembly").save(str(OUT / "assembly.step"))
+        to_assembly(mod_full + ant + cab, "assembly").save(str(OUT / "assembly.step"))
         cq.exporters.export(union(mod), str(OUT / "mockup_module.stl"), tolerance=0.02)
         cq.exporters.export(union(antenna_parts()), str(OUT / "mockup_antenna.stl"), tolerance=0.02)
 

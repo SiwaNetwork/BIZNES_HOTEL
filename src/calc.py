@@ -1,29 +1,48 @@
-"""Расчёты для справки ТЕНШ.464512.001 ПЗ.
-
-Энергетика радиолинии «борт — ГСО КА», массовый и энергетический бюджет.
-Все исходные значения — проектные оценки стадии технического проекта.
-Запуск: python3 src/calc.py — печатает таблицы, используемые в ПЗ.
+"""Расчёты для ТЕНШ.464512.001 ПЗ: энергетика радиолинии «борт — КА на ГСО»,
+масса и энергопотребление. Все исходные значения — проектные оценки стадии
+технического проекта; ПЗ берёт числа только отсюда и из design.py.
+Запуск: python3 src/calc.py — печатает сводку расчётов.
 """
 import math
 
-K_DBW = -228.6          # постоянная Больцмана, дБВт/(К·Гц)
+import design as D
+
+K_DBW = -228.6          # 10·lg k, дБВт/(К·Гц)
 RE_KM = 6378.137        # экваториальный радиус Земли, км
 H_GEO_KM = 35786.0      # высота ГСО, км
 C = 299_792_458.0
+F_UP_MHZ = 1643.5       # середина полосы ПД 1626,5–1660,5 МГц
+F_DN_MHZ = 1542.0       # середина полосы ПР 1525–1559 МГц
 
 
-def slant_range_km(elev_deg: float) -> float:
-    """Наклонная дальность до КА на ГСО при угле места elev_deg."""
+def slant_range_km(elev_deg: float, h_km: float = H_GEO_KM) -> float:
+    """Наклонная дальность до КА на высоте h_km при угле места elev_deg."""
     e = math.radians(elev_deg)
-    r = RE_KM + H_GEO_KM
+    r = RE_KM + h_km
     return math.sqrt(r**2 - (RE_KM * math.cos(e))**2) - RE_KM * math.sin(e)
 
 
 def max_elevation_deg(lat_deg: float) -> float:
-    """Максимальный угол места ГСО КА (КА на меридиане точки)."""
+    """Максимальный угол места КА на ГСО (КА на меридиане точки)."""
     phi = math.radians(lat_deg)
     k = RE_KM / (RE_KM + H_GEO_KM)
     return math.degrees(math.atan((math.cos(phi) - k) / math.sin(phi))) if lat_deg else 90.0
+
+
+def latitude_for_elevation(elev_deg: float) -> float:
+    """Широта, на которой максимальный угол места КА на ГСО равен elev_deg (бисекция)."""
+    lo, hi = 0.1, 89.9
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if max_elevation_deg(mid) > elev_deg:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def wavelength_cm(f_mhz: float) -> float:
+    return C / (f_mhz * 1e6) * 100
 
 
 def fspl_db(d_km: float, f_mhz: float) -> float:
@@ -35,135 +54,185 @@ def db(x: float) -> float:
     return 10 * math.log10(x)
 
 
-# ---------------------------------------------------------------- радиолиния
-ELEV_DEG = 20.0  # расчётный угол места (широты ~55–60° с.ш., КА не на меридиане)
+# ---------------------------------------------------------------- исходные данные линии
+ELEV_DEG = 20.0      # расчётный угол места (широты 55–60° с. ш. при смещении КА по долготе)
+P_TX_DBM = 30.0      # выходная мощность УМ
+L_PATH = 1.2         # ПАВ-фильтр, антенный коммутатор, кабель 60 мм с разъёмами, дБ
+L_TUNE = 0.5         # перестройка согласования антенны (5.4.2 а), дБ
+G_ANT = -3.0         # усиление антенны WA1 (базовый вариант) при угле места 20°, нижняя оценка, дБи
+G_ANT_QHA = -1.0     # то же для спиральной антенны (облегчённый вариант)
+L_POL_ATM = 0.8      # поляризационные и атмосферные потери, дБ
+L_BODY = 3.0         # затенение телом птицы, крен, разброс ДН, дБ
+T_ANT = 200.0        # шумовая температура антенны (видит тело птицы и подстилающую поверхность), К
+NF_LNA = 1.0         # коэффициент шума МШУ, дБ
+EBN0_REQ = 4.0       # π/2-BPSK + LDPC 1/2, вероятность ошибки 1e-5, с учётом потерь реализации, дБ
+MARGIN = 3.0         # запас на замирания, дБ
+MODEM_MAX_BPS = 2400
+MODEM_MIN_BPS = 100
+
+GT_CASES = [(-10.0, "глобальный луч"), (0.0, "региональный луч"), (10.0, "узкий луч")]
+EIRP_CASES = [20.0, 30.0]
 
 
-def uplink(gt_sat_dbk: float, p_tx_dbm: float = 30.0):
-    """Линия «борт → КА» (1626,5–1660,5 МГц)."""
+def l_feed() -> float:
+    return L_PATH + L_TUNE
+
+
+def uplink(gt_sat_dbk: float, g_ant: float = G_ANT, p_tx_dbm: float = P_TX_DBM):
+    """Линия «борт → КА». Возвращает строки таблицы и C/N0."""
     d = slant_range_km(ELEV_DEG)
+    eirp = p_tx_dbm - 30 - L_PATH - L_TUNE + g_ant
+    lfs = fspl_db(d, F_UP_MHZ)
+    cn0 = eirp - lfs - L_POL_ATM - L_BODY + gt_sat_dbk - K_DBW
     rows = [
         ("Выходная мощность УМ", p_tx_dbm - 30, "дБВт"),
-        ("Потери в тракте (фильтр, коммутатор, кабель)", -1.2, "дБ"),
-        ("Усиление антенны при угле места 20°", -1.0, "дБи"),
-    ]
-    eirp = sum(r[1] for r in rows)
-    rows.append(("ЭИИМ борта", eirp, "дБВт"))
-    lfs = fspl_db(d, 1643.5)
-    rows += [
+        ("Потери в тракте (ПАВ-фильтр, коммутатор, кабель)", -L_PATH, "дБ"),
+        ("Потери перестройки согласования антенны", -L_TUNE, "дБ"),
+        (f"Усиление антенны при угле места {ELEV_DEG:.0f}°", g_ant, "дБи"),
+        ("ЭИИМ борта", eirp, "дБВт"),
         ("Наклонная дальность", d, "км"),
         ("Потери в свободном пространстве", -lfs, "дБ"),
-        ("Поляризационные и атмосферные потери", -0.8, "дБ"),
-        ("Затенение телом птицы, крен, разброс ДН", -3.0, "дБ"),
+        ("Поляризационные и атмосферные потери", -L_POL_ATM, "дБ"),
+        ("Затенение телом птицы, крен, разброс ДН", -L_BODY, "дБ"),
         ("Добротность КА G/T", gt_sat_dbk, "дБ/К"),
+        ("Отношение C/N<sub>0</sub>", cn0, "дБГц"),
     ]
-    cn0 = eirp - lfs - 0.8 - 3.0 + gt_sat_dbk - K_DBW
-    rows.append(("Отношение C/N0", cn0, "дБГц"))
     return rows, cn0
 
 
+def board_noise():
+    """Шумовая температура системы (на входе МШУ) и добротность борта G/T."""
+    a = 10 ** (-l_feed() / 10)
+    t_lna = 290 * (10 ** (NF_LNA / 10) - 1)
+    t_sys = T_ANT * a + 290 * (1 - a) + t_lna     # приведено ко входу МШУ
+    gt = G_ANT - l_feed() - db(t_sys)
+    return t_sys, gt
+
+
 def downlink(eirp_sat_dbw: float):
-    """Линия «КА → борт» (1525–1559 МГц)."""
+    """Линия «КА → борт». Возвращает строки таблицы и C/N0."""
     d = slant_range_km(ELEV_DEG)
-    l_feed = 1.2
-    t_ant = 200.0       # видит тело птицы и подстилающую поверхность
-    nf_lna = 1.0
-    t_lna = 290 * (10 ** (nf_lna / 10) - 1)
-    a = 10 ** (-l_feed / 10)
-    t_sys = t_ant * a + 290 * (1 - a) + t_lna
-    g_ant = -1.0
-    gt = g_ant - l_feed - db(t_sys) + 0  # приведено ко входу антенны
-    lfs = fspl_db(d, 1542.0)
+    t_sys, gt = board_noise()
+    lfs = fspl_db(d, F_DN_MHZ)
+    cn0 = eirp_sat_dbw - lfs - L_POL_ATM - L_BODY + gt - K_DBW
     rows = [
         ("ЭИИМ КА на несущую", eirp_sat_dbw, "дБВт"),
         ("Наклонная дальность", d, "км"),
         ("Потери в свободном пространстве", -lfs, "дБ"),
-        ("Поляризационные и атмосферные потери", -0.8, "дБ"),
-        ("Затенение телом птицы, крен, разброс ДН", -3.0, "дБ"),
-        ("Шумовая температура системы", t_sys, "К"),
+        ("Поляризационные и атмосферные потери", -L_POL_ATM, "дБ"),
+        ("Затенение телом птицы, крен, разброс ДН", -L_BODY, "дБ"),
+        (f"Усиление антенны при угле места {ELEV_DEG:.0f}°", G_ANT, "дБи"),
+        ("Потери в тракте до МШУ (с перестройкой)", -l_feed(), "дБ"),
+        ("Шумовая температура антенны", T_ANT, "К"),
+        ("Коэффициент шума МШУ", NF_LNA, "дБ"),
+        ("Шумовая температура системы (на входе МШУ)", t_sys, "К"),
         ("Добротность борта G/T", gt, "дБ/К"),
+        ("Отношение C/N<sub>0</sub>", cn0, "дБГц"),
     ]
-    cn0 = eirp_sat_dbw - lfs - 0.8 - 3.0 + gt - K_DBW
-    rows.append(("Отношение C/N0", cn0, "дБГц"))
     return rows, cn0
 
 
-EBN0_REQ = 4.0   # π/2-BPSK + LDPC 1/2, BER 1e-5, с учётом потерь реализации
-MARGIN = 3.0     # запас на замирания
-
-
 def max_rate_bps(cn0: float) -> float:
+    """Максимальная скорость по энергетике (с запасом MARGIN)."""
     return 10 ** ((cn0 - EBN0_REQ - MARGIN) / 10)
 
 
-# ---------------------------------------------------------------- масса
-MASS = [
-    ("Плата печатная 32×22×0,6 мм, 4 слоя", 0.9),
-    ("Электрорадиоэлементы (ИС, пассивные)", 1.6),
-    ("Экран РЧ-тракта (луженая сталь 0,1 мм)", 0.9),
-    ("Накопительные конденсаторы (2 шт.)", 0.4),
-    ("Влагозащитное покрытие, припой", 0.2),
-]
-MASS_ANT = [
-    ("Антенна WA1 двухслойная полосковая 42×42×6 мм", 4.8),
-    ("Кабель коаксиальный ⌀1,13 мм, 60 мм, с разъёмами", 0.6),
-    ("Элементы крепления, клей", 0.5),
-]
+def cn0_threshold(rate_bps: float, with_margin: bool = False) -> float:
+    return db(rate_bps) + EBN0_REQ + (MARGIN if with_margin else 0.0)
 
 
-# ---------------------------------------------------------------- энергетика
-V_BAT = 3.7
-MODES = [  # режим, мощность потребления, Вт
-    ("Сон (часы реального времени, пробуждение)", 0.0002),
-    ("Приём (дежурный, синхронизация)", 0.085),
-    ("Передача, Pвых = 30 дБм (1 Вт)", 2.6),
-    ("Передача, Pвых = 27 дБм (0,5 Вт)", 1.5),
-]
+def gt_required(rate_bps: float) -> float:
+    """G/T КА, необходимая для скорости rate_bps на линии «борт → КА» (с запасом)."""
+    _, cn0_at_0 = uplink(0.0)
+    return cn0_threshold(rate_bps, True) - cn0_at_0
 
 
-def scenario(name, tx_s_per_h, tx_w, rx_s_per_h):
-    sleep_s = 3600 - tx_s_per_h - rx_s_per_h
-    wh = (tx_s_per_h * tx_w + rx_s_per_h * 0.085 + sleep_s * 0.0002) / 3600
-    return name, wh, wh / V_BAT * 1000
+def eirp_required(rate_bps: float) -> float:
+    """ЭИИМ КА, необходимая для скорости rate_bps на линии «КА → борт» (с запасом)."""
+    _, cn0_at_0 = downlink(0.0)
+    return cn0_threshold(rate_bps, True) - cn0_at_0
 
 
-def packet_tx_time(payload_bytes, rate_bps, overhead_s=0.4):
-    """Время передачи пакета: преамбула/синхро + данные (кодовая скорость 1/2 учтена в rate)."""
+def packet_tx_time(payload_bytes: int, rate_bps: float, overhead_s: float = 0.4) -> float:
+    """Время передачи пакета: преамбула и синхронизация + данные со служебными 16 байт."""
     return overhead_s + (payload_bytes + 16) * 8 / rate_bps
 
 
+# ---------------------------------------------------------------- энергопотребление
+V_BAT = 3.7
+V_BAT_MIN = 3.3
+P_SLEEP = 0.0002
+P_RX = 0.085
+P_TX_1W = 2.6
+P_TX_05W = 1.5
+MODES = [  # режим, мощность потребления, Вт
+    ("Сон (часы реального времени, пробуждение)", P_SLEEP),
+    ("Приём (дежурный, синхронизация)", P_RX),
+    ("Передача, Pвых = 30 дБм (1 Вт)", P_TX_1W),
+    ("Передача, Pвых = 27 дБм (0,5 Вт)", P_TX_05W),
+]
+SCEN_RATE = 250      # бит/с — достижимо при G/T КА не хуже региональной оценки (таблица линии «борт → КА»)
+
+
+def scenario(tx_s_per_h: float, tx_w: float, rx_s_per_h: float):
+    """Энергия за час: полудуплекс — время приёма не пересекается со временем передачи."""
+    rx = min(rx_s_per_h, 3600 - tx_s_per_h)
+    sleep = max(0.0, 3600 - tx_s_per_h - rx)
+    wh = (tx_s_per_h * tx_w + rx * P_RX + sleep * P_SLEEP) / 3600
+    return wh, wh / V_BAT * 1000
+
+
 SCENARIOS_DEF = [
-    # имя, пакетов в час, байт, скорость, мощность ТХ, секунд приёма в час
-    ("А — телеметрия раз в 5 мин, приём команд 10 %", 12, 64, 600, 2.6, 360),
-    ("Б — телеметрия раз в 1 мин, приём команд 10 %", 60, 64, 600, 2.6, 360),
-    ("В — телеметрия раз в 1 мин, непрерывный приём", 60, 64, 600, 2.6, 3600),
-    ("Г — кадр-превью 2 кБ раз в 10 мин + Б", 60, 64, 600, 2.6, 360),
+    # имя, пакетов телеметрии в час, байт, кадров-превью 2 кБ в час, секунд приёма в час
+    ("А — телеметрия раз в 5 мин, приём команд 10 % времени", 12, 64, 0, 360),
+    ("Б — телеметрия раз в 1 мин, приём команд 10 % времени", 60, 64, 0, 360),
+    ("В — телеметрия раз в 1 мин, непрерывный приём", 60, 64, 0, 3600),
+    ("Г — как Б, плюс кадр-превью 2 кБ раз в 10 мин", 60, 64, 6, 360),
 ]
 
 
-def scenarios():
+def scenarios(rate_bps: float = SCEN_RATE):
     out = []
-    for name, n, nbytes, rate, ptx, rx in SCENARIOS_DEF:
-        t = n * packet_tx_time(nbytes, rate)
-        if name.startswith("Г"):
-            t += 6 * packet_tx_time(2048, 2400)
-        out.append(scenario(name, t, ptx, rx) + (t,))
+    for name, n, nbytes, n_prev, rx in SCENARIOS_DEF:
+        t = n * packet_tx_time(nbytes, rate_bps) + n_prev * packet_tx_time(2048, rate_bps)
+        wh, mah = scenario(t, P_TX_1W, rx)
+        out.append((name, wh, mah, t))
     return out
 
 
+def summary():
+    """Ключевые числа для текста ПЗ (единый источник)."""
+    up = {gt: uplink(gt)[1] for gt, _ in GT_CASES}
+    dn = {e: downlink(e)[1] for e in EIRP_CASES}
+    t_sys, gt_board = board_noise()
+    sc = scenarios()
+    r_up = {gt: max_rate_bps(c) for gt, c in up.items()}
+    r_dn = {e: max_rate_bps(c) for e, c in dn.items()}
+    e_pkt_1w = P_TX_1W * packet_tx_time(64, r_up[10.0] if r_up[10.0] < MODEM_MAX_BPS else MODEM_MAX_BPS)
+    return dict(
+        up=up, dn=dn, r_up=r_up, r_dn=r_dn, t_sys=t_sys, gt_board=gt_board, scenarios=sc,
+        gt_req_100=gt_required(MODEM_MIN_BPS), gt_req_scen=gt_required(SCEN_RATE),
+        eirp_req_cmd_1s=None,
+        thr_100=cn0_threshold(MODEM_MIN_BPS), thr_100_m=cn0_threshold(MODEM_MIN_BPS, True),
+        i_peak=(P_TX_1W / V_BAT, P_TX_1W / V_BAT_MIN),
+        lat_el5=latitude_for_elevation(5.0), lat_el0=math.degrees(math.acos(RE_KM / (RE_KM + H_GEO_KM))),
+        lam_cm=wavelength_cm(1600.0), lam_band=(wavelength_cm(1660.5), wavelength_cm(1525.0)),
+        e_pkt_1w=e_pkt_1w,
+    )
+
+
 if __name__ == "__main__":
+    s = summary()
     for lat in (45, 55, 60, 65, 70, 75):
         print(f"широта {lat}° — макс. угол места {max_elevation_deg(lat):.1f}°")
-    for gt in (0.0, 10.0):
-        rows, cn0 = uplink(gt)
-        print(f"\nUP G/T={gt}: C/N0={cn0:.1f} дБГц, Rmax={max_rate_bps(cn0):.0f} бит/с")
-        for r in rows:
-            print("   ", r)
-    for e in (20.0, 30.0):
-        rows, cn0 = downlink(e)
-        print(f"\nDOWN EIRP={e}: C/N0={cn0:.1f}, Rmax={max_rate_bps(cn0):.0f}")
-        for r in rows:
-            print("   ", r)
-    print("\nмасса модуля", sum(m for _, m in MASS), "антенный узел", sum(m for _, m in MASS_ANT))
-    for s in scenarios():
-        print(s)
+    print(f"угол места 5° на широте {s['lat_el5']:.1f}°, КА под горизонтом выше {s['lat_el0']:.1f}°")
+    for gt, name in GT_CASES:
+        print(f"UP G/T={gt:+.0f} ({name}): C/N0={s['up'][gt]:.1f} дБГц, Rmax={s['r_up'][gt]:.0f} бит/с")
+    for e in EIRP_CASES:
+        print(f"DOWN EIRP={e:.0f}: C/N0={s['dn'][e]:.1f} дБГц, Rmax={s['r_dn'][e]:.0f} бит/с")
+    print(f"Tsys={s['t_sys']:.0f} К, G/T борта={s['gt_board']:.1f} дБ/К")
+    print(f"G/T КА для 100 бит/с: {s['gt_req_100']:+.1f} дБ/К; для {SCEN_RATE} бит/с: {s['gt_req_scen']:+.1f} дБ/К")
+    print(f"ЭИИМ КА для 100 бит/с на борт: {eirp_required(100):.1f} дБВт")
+    print(f"масса модуля {D.MASS_MODULE} г, комплект {D.MASS_KIT} г, облегчённый {D.MASS_KIT_LIGHT} г")
+    for name, wh, mah, t in s["scenarios"]:
+        print(f"{name}: ПД {t:.0f} с/ч, {wh:.3f} Вт·ч, {mah:.1f} мА·ч")

@@ -1,18 +1,20 @@
-"""ТЕНШ.464512.001 ПЗ — Справка о возможной реализации (пояснительная записка).
+"""ТЕНШ.464512.001 ПЗ — пояснительная записка (справка о возможной реализации модуля).
 
-Оформление: ГОСТ 2.105-2019 (общие требования к текстовым документам),
-ГОСТ 2.104-2006 (основные надписи: форма 2 — первый лист, 2а — последующие),
-ГОСТ 2.106-2019 (текстовые документы), ГОСТ 7.32-2017 (структурные элементы — по аналогии).
+Оформление: ГОСТ 2.105-2019 (текстовые документы), ГОСТ 2.104-2006 (основные надписи:
+форма 2 — первый лист, 2а — последующие), ГОСТ 2.106-2019, ГОСТ 2.503-2013 (лист регистрации изменений).
+Все числа берутся из calc.py и design.py.
 """
+import math
+import re
 import sys
-from pathlib import Path
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as rl_canvas
-from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Frame, Image, KeepTogether, NextPageTemplate,
+from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, Image, KeepTogether,
+                                NextPageTemplate,
                                 PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.platypus.tableofcontents import TableOfContents
 
@@ -23,8 +25,8 @@ from gost import Pen
 
 ROOT = gost.ROOT
 CODE = gost.CODE + " ПЗ"
-TITLE = "Справка о возможной реализации"
 DOCNAME = "Пояснительная записка"
+PCB = "ТЕНШ.687281.001"
 
 # ------------------------------------------------------------------ стили
 BASE = 12
@@ -32,10 +34,14 @@ LEAD = 17
 INDENT = 12.5 * mm
 sty = {
     "body": ParagraphStyle("body", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_JUSTIFY,
-                           firstLineIndent=INDENT, spaceAfter=0),
+                           firstLineIndent=INDENT),
     "noind": ParagraphStyle("noind", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_JUSTIFY),
+    "where": ParagraphStyle("where", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_LEFT,
+                            leftIndent=10 * mm, firstLineIndent=-10 * mm),
+    "where2": ParagraphStyle("where2", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_LEFT,
+                             leftIndent=10 * mm),
     "list": ParagraphStyle("list", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_JUSTIFY,
-                           leftIndent=0, firstLineIndent=INDENT),
+                           firstLineIndent=INDENT),
     "h1": ParagraphStyle("h1", fontName="Serif-Bold", fontSize=14, leading=18, firstLineIndent=INDENT,
                          spaceBefore=10, spaceAfter=8, keepWithNext=1),
     "h2": ParagraphStyle("h2", fontName="Serif-Bold", fontSize=12, leading=LEAD, firstLineIndent=INDENT,
@@ -43,48 +49,71 @@ sty = {
     "hc": ParagraphStyle("hc", fontName="Serif-Bold", fontSize=14, leading=18, alignment=TA_CENTER,
                          spaceAfter=10, keepWithNext=1),
     "tcap": ParagraphStyle("tcap", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_LEFT,
-                           spaceBefore=6, spaceAfter=2, keepWithNext=1),
+                           spaceBefore=6, spaceAfter=2),
     "fcap": ParagraphStyle("fcap", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_CENTER,
                            spaceBefore=2, spaceAfter=8),
-    "cell": ParagraphStyle("cell", fontName="Serif", fontSize=10, leading=12, alignment=TA_LEFT),
-    "cellc": ParagraphStyle("cellc", fontName="Serif", fontSize=10, leading=12, alignment=TA_CENTER),
-    "cellh": ParagraphStyle("cellh", fontName="Serif", fontSize=10, leading=12, alignment=TA_CENTER),
     "formula": ParagraphStyle("formula", fontName="Serif", fontSize=BASE, leading=LEAD, alignment=TA_CENTER),
     "t_big": ParagraphStyle("t_big", fontName="Serif-Bold", fontSize=16, leading=22, alignment=TA_CENTER),
     "t_mid": ParagraphStyle("t_mid", fontName="Serif", fontSize=14, leading=20, alignment=TA_CENTER),
     "t_left": ParagraphStyle("t_left", fontName="Serif", fontSize=12, leading=17, alignment=TA_LEFT),
-    "toc1": ParagraphStyle("toc1", fontName="Serif", fontSize=BASE, leading=LEAD, leftIndent=0, firstLineIndent=0),
-    "toc2": ParagraphStyle("toc2", fontName="Serif", fontSize=BASE, leading=LEAD, leftIndent=8 * mm, firstLineIndent=0),
+    "toc1": ParagraphStyle("toc1", fontName="Serif", fontSize=BASE, leading=LEAD),
+    "toc2": ParagraphStyle("toc2", fontName="Serif", fontSize=BASE, leading=LEAD, leftIndent=8 * mm),
 }
+ALIGN = {"l": TA_LEFT, "c": TA_CENTER, "r": TA_RIGHT}
+
+
+def cell_style(size, align, head=False):
+    return ParagraphStyle(f"cell{size}{align}{head}", fontName="Serif", fontSize=size, leading=size + 2,
+                          alignment=TA_CENTER if head else ALIGN[align])
 
 
 def f1(x, nd=1):
-    s = f"{x:.{nd}f}".replace(".", ",").replace("-", "−")
-    return s
+    return f"{x:.{nd}f}".replace(".", ",").replace("-", "−")
+
+
+def n0(x):
+    """Целое с группировкой разрядов (для чисел от 10 000)."""
+    v = f"{x:.0f}"
+    return f"{x:,.0f}".replace(",", " ") if abs(x) >= 10000 else v
+
+
+def r10(x):
+    """Округление для текста: до десятков (до 1000) или до сотен."""
+    return f"{round(x, -1 if x < 1000 else -2):.0f}"
+
+
+_UNITS = (r"%|мм|см|км|кг|г|мВт|мкВт|Вт·ч|Вт|мА·ч|мА|мкА|А·ч|А|В|бит/с|кбит/с|байт|бит|дБи|дБГц|дБ/К|дБВт|дБм|дБ|"
+          r"МГц|ГГц|Гц|К|с|мин|ч|°C|°|ppm|C|раз")
+_NUM_UNIT = re.compile(r"(\d) (?=(?:" + _UNITS + r")(?![А-Яа-яA-Za-z]))")
+_GROUPS = re.compile(r"(\d) (\d{3})(?!\d)")
+
+
+def nb(text: str) -> str:
+    """Неразрывные пробелы между числом и единицей и в группах разрядов; знак × — без пробелов."""
+    text = _GROUPS.sub(r"\1&nbsp;\2", text)
+    text = _NUM_UNIT.sub(r"\1&nbsp;", text)
+    return text.replace(" × ", "×").replace("№ ", "№&nbsp;")
 
 
 # ------------------------------------------------------------------ документ
 class Doc(BaseDocTemplate):
     def __init__(self, path, **kw):
         super().__init__(str(path), pagesize=(210 * mm, 297 * mm), **kw)
-        self.title = f"{CODE} — {TITLE}"
+        self.title = f"{CODE} — {gost.PRODUCT.replace(chr(10), ' ')}. {DOCNAME}"
         self.author = "ТЕНШ"
-        self.subject = gost.PRODUCT.replace("\n", " ")
-        fr_title = Frame(25 * mm, 20 * mm, 175 * mm, 262 * mm, id="title", showBoundary=0)
-        fr_first = Frame(25 * mm, 55 * mm, 175 * mm, 220 * mm, id="first", showBoundary=0,
-                         leftPadding=0, rightPadding=0)
-        fr_rest = Frame(25 * mm, 30 * mm, 175 * mm, 252 * mm, id="rest", showBoundary=0,
-                        leftPadding=0, rightPadding=0)
+        self.subject = "Справка о возможной реализации"
         self.addPageTemplates([
-            PageTemplate("title", [fr_title]),
-            PageTemplate("first", [fr_first]),
-            PageTemplate("rest", [fr_rest]),
+            PageTemplate("title", [Frame(25 * mm, 20 * mm, 175 * mm, 262 * mm, id="title")]),
+            PageTemplate("first", [Frame(25 * mm, 55 * mm, 175 * mm, 220 * mm, id="first",
+                                         leftPadding=0, rightPadding=0)]),
+            PageTemplate("rest", [Frame(25 * mm, 30 * mm, 175 * mm, 252 * mm, id="rest",
+                                        leftPadding=0, rightPadding=0)]),
         ])
 
     def afterFlowable(self, fl):
         if isinstance(fl, Paragraph) and getattr(fl, "_toc", None) is not None:
-            lvl = fl._toc
-            self.notify("TOCEntry", (lvl, getattr(fl, "_toc_text", None) or fl.getPlainText(), self.page))
+            text = getattr(fl, "_toc_text", None) or fl.getPlainText()
+            self.notify("TOCEntry", (fl._toc, text, self.page))
 
 
 class StampCanvas(rl_canvas.Canvas):
@@ -111,7 +140,10 @@ class StampCanvas(rl_canvas.Canvas):
         p = Pen(self)
         self.saveState()
         if n == 1:
-            pass  # титульный лист — без рамки и основной надписи (ГОСТ 2.105, 4.1.3)
+            # титульный лист: без рамки и основной надписи, с графами 19–23 (ГОСТ 2.105, ГОСТ 2.104)
+            gost.margin_graphs(p)
+            self.setFont("Serif", 14)
+            self.drawCentredString(112.5 * mm, 134 * mm, f"Листов {total}")
         elif n == 2:
             gost.frame(p, W, H, drawing=False, first=True, code=CODE)
             gost.stamp_form2(p, W, gost.PRODUCT, DOCNAME, code=CODE, lit="Т", sheet=n, sheets=total)
@@ -123,13 +155,20 @@ class StampCanvas(rl_canvas.Canvas):
 
 # ------------------------------------------------------------------ помощники
 story = []
-_counters = {"t": 0, "f": 0, "e": 0}
+_cnt = {"t": 0, "f": 0, "e": 0}
+_refs = {}          # ключ таблицы/рисунка -> номер (заполняется на первом проходе)
+_new_refs = {}
 
 
-def H1(text):
+def ref(key):
+    return str(_refs.get(key, "?"))
+
+
+def H1(text, toc_text=None):
+    story.append(CondPageBreak(40 * mm))
     p = Paragraph(text, sty["h1"])
     p._toc = 0
-    story.append(CondPageBreak(40 * mm))
+    p._toc_text = toc_text
     story.append(p)
 
 
@@ -140,94 +179,164 @@ def H2(text):
 
 
 def P(text, style="body"):
-    story.append(Paragraph(text, sty[style]))
+    story.append(Paragraph(nb(text), sty[style]))
 
 
 def LI(items, marker="–"):
     for it in items:
-        story.append(Paragraph(f"{marker}&nbsp;{it}", sty["list"]))
+        story.append(Paragraph(f"{marker}&nbsp;{nb(it)}", sty["list"]))
 
 
 def LIA(items):
     letters = "абвгдежиклмнпрстуфхцшщэюя"
     for i, it in enumerate(items):
-        story.append(Paragraph(f"{letters[i]})&nbsp;{it}", sty["list"]))
+        story.append(Paragraph(f"{letters[i]})&nbsp;{nb(it)}", sty["list"]))
 
 
-def TBL(caption, header, rows, widths, align=None, font=10):
-    _counters["t"] += 1
-    n = _counters["t"]
-    cap = Paragraph(f"Таблица {n} – {caption}", sty["tcap"])
-    data = [[Paragraph(h, sty["cellh"]) for h in header]]
+def WHERE(items):
+    """Пояснения символов формулы: каждое с новой строки, первая начинается со слова «где»."""
+    for i, it in enumerate(items):
+        story.append(Paragraph(("где&nbsp;" if i == 0 else "") + nb(it), sty["where" if i == 0 else "where2"]))
+
+
+class GTable(Table):
+    """Таблица с переносом по ГОСТ 2.105-2019: над перенесённой частью — «Продолжение таблицы N»,
+    шапка повторяется."""
+    num = ""
+
+    def split(self, aw, ah):
+        parts = super().split(aw, ah)
+        if len(parts) == 2:
+            parts[1].num = self.num
+            return [parts[0], PageBreak(), Paragraph(f"Продолжение таблицы {self.num}", sty["tcap"]), parts[1]]
+        return parts
+
+
+def TBL(key, caption, header, rows, widths, align=None, font=10, number=None):
+    if number is None:
+        _cnt["t"] += 1
+        number = str(_cnt["t"])
+    _new_refs[key] = number
+    align = align or "l" * len(header)
+    data = [[Paragraph(nb(h), cell_style(font, "c", True)) for h in header]]
     for r in rows:
-        line = []
-        for i, v in enumerate(r):
-            st = sty["cellc"] if (align and align[i] == "c") else sty["cell"]
-            line.append(Paragraph(str(v), st))
-        data.append(line)
-    t = Table(data, colWidths=[w * mm for w in widths], repeatRows=1)
+        data.append([Paragraph(nb(str(v)), cell_style(font, align[i])) for i, v in enumerate(r)])
+    t = GTable(data, colWidths=[w * mm for w in widths], repeatRows=1)
+    t.num = number
     t.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING", (0, 0), (-1, -1), 3),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]))
-    story.append(cap)
-    story.append(t)
+    cap = Paragraph(f"Таблица {number} – {nb(caption)}", sty["tcap"])
+    if len(rows) <= 5:
+        story.append(KeepTogether([cap, t]))
+    else:
+        story.append(CondPageBreak(35 * mm))   # название не отрывается от начала таблицы
+        story.append(cap)
+        story.append(t)
     story.append(Spacer(1, 4 * mm))
-    return n
 
 
-def FIG(path, caption, width_mm, height_mm=None):
-    _counters["f"] += 1
-    n = _counters["f"]
-    from PIL import Image as PI
-    w, h = PI.open(path).size
-    hh = width_mm * h / w if height_mm is None else height_mm
+def FIG(key, path, caption, width_mm, max_h_mm=240):
+    _cnt["f"] += 1
+    _new_refs[key] = str(_cnt["f"])
+    from PIL import Image as PI, ImageOps
+    im = PI.open(path).convert("RGB")
+    box = ImageOps.invert(im).getbbox()
+    if box:
+        pad = 12
+        im = im.crop((max(box[0] - pad, 0), max(box[1] - pad, 0), min(box[2] + pad, im.width),
+                      min(box[3] + pad, im.height)))
+        path = ROOT / "build" / f"pz_{key}.png"
+        path.parent.mkdir(exist_ok=True)
+        im.save(path)
+    w, h = im.size
+    hh = width_mm * h / w
+    if hh > max_h_mm:
+        width_mm, hh = width_mm * max_h_mm / hh, max_h_mm
     img = Image(str(path), width=width_mm * mm, height=hh * mm)
-    story.append(KeepTogether([Spacer(1, 2 * mm), img, Paragraph(f"Рисунок {n} – {caption}", sty["fcap"])]))
-    return n
+    story.append(KeepTogether([Spacer(1, 2 * mm), img,
+                               Paragraph(f"Рисунок {_cnt['f']} – {nb(caption)}", sty["fcap"])]))
+
+
+class RotFig(Flowable):
+    """Иллюстрация на весь лист, повёрнутая для просмотра с поворотом документа по часовой стрелке
+    (ГОСТ 2.105-2019, 6.5.5); подпись поворачивается вместе с иллюстрацией."""
+
+    def __init__(self, path, caption, w_mm=175, h_mm=240):
+        super().__init__()
+        from PIL import Image as PI
+        self.path, self.caption = str(path), caption
+        self.W, self.H = w_mm * mm, h_mm * mm          # на листе: ширина и высота занимаемой области
+        iw, ih = PI.open(path).size
+        self.cap = Paragraph(caption, sty["fcap"])
+        _, cap_h = self.cap.wrap(self.H, 50 * mm)
+        self.cap_h = cap_h + 6
+        k = min(self.H / iw, (self.W - self.cap_h) / ih)    # в повёрнутой системе: x — вдоль высоты листа
+        self.iw, self.ih = iw * k, ih * k
+
+    def wrap(self, aw, ah):
+        return self.W, self.H
+
+    def draw(self):
+        c = self.canv
+        c.saveState()
+        c.translate(self.W, 0)
+        c.rotate(90)                    # верх иллюстрации — к левому краю листа
+        x0 = (self.H - self.iw) / 2
+        c.drawImage(self.path, x0, self.cap_h, width=self.iw, height=self.ih, mask="auto")
+        self.cap.wrap(self.H, self.cap_h)
+        self.cap.drawOn(c, 0, 2)
+        c.restoreState()
+
+
+def FIG_ROT(key, path, caption):
+    _cnt["f"] += 1
+    _new_refs[key] = str(_cnt["f"])
+    story.append(PageBreak())
+    story.append(RotFig(path, f"Рисунок {_cnt['f']} – {nb(caption)}"))
+    story.append(PageBreak())
 
 
 def EQ(formula):
-    _counters["e"] += 1
-    n = _counters["e"]
-    t = Table([[Paragraph(formula, sty["formula"]), Paragraph(f"({n})", sty["formula"])]],
+    _cnt["e"] += 1
+    t = Table([[Paragraph(formula, sty["formula"]), Paragraph(f"({_cnt['e']})", sty["formula"])]],
               colWidths=[160 * mm, 15 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
     story.append(t)
-    return n
 
 
-# ------------------------------------------------------------------ содержание
+CN0 = "<i>C/N</i><sub>0</sub>"
+CN0_T = "C/N<sub>0</sub>"
+
+
+# ------------------------------------------------------------------ структурные элементы
 def title_page():
-    sig = ("_______________ / _______________ /<br/>«____» _______________ 2026 г.")
+    sig = "_______________ / _______________ /<br/>«____» _______________ 2026 г."
     t = Table([[Paragraph("СОГЛАСОВАНО<br/><br/>" + sig, sty["t_left"]),
-                Paragraph("УТВЕРЖДАЮ<br/><br/>" + sig, sty["t_left"])]],
-              colWidths=[87 * mm, 87 * mm])
+                Paragraph("УТВЕРЖДАЮ<br/><br/>" + sig, sty["t_left"])]], colWidths=[87 * mm, 87 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (1, 0), (1, 0), 14 * mm)]))
     story.append(t)
-    story.append(Spacer(1, 55 * mm))
+    story.append(Spacer(1, 50 * mm))
     story.append(Paragraph("МОДУЛЬ СПУТНИКОВОЙ СВЯЗИ СВЕРХКОМПАКТНЫЙ", sty["t_big"]))
     story.append(Spacer(1, 3 * mm))
     story.append(Paragraph("для малоразмерного биогибридного летательного аппарата", sty["t_mid"]))
-    story.append(Spacer(1, 14 * mm))
-    story.append(Paragraph("СПРАВКА О ВОЗМОЖНОЙ РЕАЛИЗАЦИИ", sty["t_big"]))
-    story.append(Spacer(1, 3 * mm))
-    story.append(Paragraph("Пояснительная записка", sty["t_mid"]))
-    story.append(Spacer(1, 8 * mm))
+    story.append(Paragraph("Оценка возможности реализации (справка)", sty["t_mid"]))
+    story.append(Spacer(1, 12 * mm))
+    story.append(Paragraph("Пояснительная записка", sty["t_big"]))
+    story.append(Spacer(1, 6 * mm))
     story.append(Paragraph(CODE, sty["t_big"]))
-    story.append(Spacer(1, 3 * mm))
+    story.append(Spacer(1, 26 * mm))      # место для «Листов N» (выводится при отрисовке листа)
     story.append(Paragraph("Стадия: технический проект (проработка)", sty["t_mid"]))
-    story.append(Spacer(1, 30 * mm))
-    t2 = Table([["", Paragraph("Разработал<br/><br/>_______________ / _______________ /<br/>"
-                               "«____» _______________ 2026 г.", sty["t_left"])]],
-               colWidths=[87 * mm, 87 * mm])
+    story.append(Spacer(1, 22 * mm))
+    t2 = Table([["", Paragraph("Разработал<br/><br/>" + sig, sty["t_left"])]], colWidths=[87 * mm, 87 * mm])
     t2.setStyle(TableStyle([("LEFTPADDING", (1, 0), (1, 0), 14 * mm)]))
     story.append(t2)
-    story.append(Spacer(1, 22 * mm))
+    story.append(Spacer(1, 18 * mm))
     story.append(Paragraph("2026", sty["t_mid"]))
     story.append(NextPageTemplate("first"))
     story.append(PageBreak())
@@ -243,52 +352,79 @@ def toc():
     story.append(PageBreak())
 
 
+ABBR = [
+    ("АКБ", "аккумуляторная батарея"),
+    ("АЦП / ЦАП", "аналого-цифровой / цифро-аналоговый преобразователь"),
+    ("БПЛА", "беспилотный летательный аппарат"),
+    ("ГКРЧ", "Государственная комиссия по радиочастотам"),
+    ("ГСО", "геостационарная орбита"),
+    ("ДН", "диаграмма направленности антенны"),
+    ("КА", "космический аппарат"),
+    ("КПД", "коэффициент полезного действия"),
+    ("КСВ", "коэффициент стоячей волны"),
+    ("Ку", "коэффициент усиления"),
+    ("Кш", "коэффициент шума"),
+    ("МШУ", "малошумящий усилитель"),
+    ("НОО", "низкая околоземная орбита"),
+    ("ОКР", "опытно-конструкторская работа"),
+    ("ПАВ", "поверхностные акустические волны"),
+    ("ПД / ПР", "передача / приём"),
+    ("ПК", "полётный контроллер"),
+    ("ПО", "программное обеспечение"),
+    ("ПСС", "подвижная спутниковая служба"),
+    ("РКД", "рабочая конструкторская документация"),
+    ("РЧ", "радиочастотный"),
+    ("РЭС", "радиоэлектронное средство"),
+    ("УВЧ", "ультравысокие частоты (300–3000 МГц)"),
+    ("УМ", "усилитель мощности"),
+    ("ЦОС", "цифровая обработка сигналов"),
+    ("ЭИИМ", "эквивалентная изотропно излучаемая мощность"),
+    (CN0_T, "отношение мощности несущей к спектральной плотности шума, дБГц"),
+    ("G/T", "добротность приёмной системы, дБ/К"),
+    ("LDPC", "код с малой плотностью проверок на чётность"),
+    ("NTN", "Non-Terrestrial Network — неназемная сеть 3GPP (спутники и высотные платформы), "
+            "нормативно с Rel. 17"),
+    ("PPS", "секундная метка времени"),
+    ("TCXO", "термокомпенсированный кварцевый генератор"),
+    ("UART", "универсальный асинхронный приёмопередатчик"),
+]
+
+
 def abbreviations():
-    h = Paragraph("Перечень сокращений", sty["hc"])
-    h._toc = 0
-    story.append(h)
-    rows = [
-        ("АКБ", "аккумуляторная батарея"),
-        ("БПЛА", "беспилотный летательный аппарат"),
-        ("ГСО", "геостационарная орбита"),
-        ("ДН", "диаграмма направленности антенны"),
-        ("КА", "космический аппарат"),
-        ("МК", "микроконтроллер"),
-        ("МШУ", "малошумящий усилитель"),
-        ("НОО", "низкая околоземная орбита"),
-        ("ПД / ПР", "передача / приём"),
-        ("ПК", "полётный контроллер"),
-        ("ПСС", "подвижная спутниковая служба"),
-        ("РКД", "рабочая конструкторская документация"),
-        ("РЧ", "радиочастотный"),
-        ("ТСХО", "термокомпенсированный кварцевый генератор"),
-        ("УМ", "усилитель мощности"),
-        ("ЦОС", "цифровая обработка сигналов"),
-        ("ЭИИМ", "эквивалентная изотропно излучаемая мощность"),
-        ("G/T", "добротность приёмной системы, дБ/К"),
-        ("C/N0", "отношение мощности несущей к спектральной плотности шума, дБГц"),
-        ("NTN", "Non-Terrestrial Network — спутниковый сегмент сетей 3GPP (Rel. 17 и выше)"),
-        ("RHCP", "правая круговая поляризация"),
-    ]
-    t = Table([[Paragraph(a, sty["noind"]), Paragraph("– " + b, sty["noind"])] for a, b in rows],
-              colWidths=[28 * mm, 147 * mm])
-    t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
+    H1("Перечень сокращений")
+    st = ParagraphStyle("abbr", parent=sty["noind"], alignment=TA_LEFT)
+    t = Table([[Paragraph(a, st), Paragraph("– " + nb(b), st)] for a, b in ABBR], colWidths=[30 * mm, 145 * mm])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
                            ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]))
     story.append(t)
-    story.append(PageBreak())
 
 
+# ------------------------------------------------------------------ основная часть
 def body(e1_png):
-    up0, cn_up0 = calc.uplink(0.0)
-    up10, cn_up10 = calc.uplink(10.0)
-    dn20, cn_dn20 = calc.downlink(20.0)
-    dn30, cn_dn30 = calc.downlink(30.0)
-    r_up0, r_up10 = calc.max_rate_bps(cn_up0), calc.max_rate_bps(cn_up10)
-    r_dn20, r_dn30 = calc.max_rate_bps(cn_dn20), calc.max_rate_bps(cn_dn30)
-    m_total = D.MASS_MODULE + D.MASS_ANTENNA + D.MASS_CABLE + D.MASS_MOUNT
-    m_qha = D.MASS_MODULE + 6.0 + D.MASS_CABLE + D.MASS_MOUNT
-    sc = calc.scenarios()
+    s = calc.summary()
+    gts = [gt for gt, _ in calc.GT_CASES]
+    r_up, r_dn = s["r_up"], s["r_dn"]
+    r_up_cap = {gt: min(r, calc.MODEM_MAX_BPS) for gt, r in r_up.items()}
+    sc = s["scenarios"]
     d20 = calc.slant_range_km(calc.ELEV_DEG)
+    d_geo = (calc.H_GEO_KM, calc.slant_range_km(0.0))
+    d_leo = (500.0, 4000.0)
+    dl_min = 20 * math.log10(d_geo[0] / d_leo[1])
+    dl_max = 20 * math.log10(d_geo[1] / d_leo[0])
+    i_lo, i_hi = s["i_peak"]
+    c_lo, c_hi = i_lo / 1.0, i_hi / 0.5
+    kit, kit_l = D.MASS_KIT, D.MASS_KIT_LIGHT
+    t64 = {gt: calc.packet_tx_time(64, r_up_cap[gt]) for gt in (0.0, 10.0)}
+    t32 = {e: calc.packet_tx_time(32, min(r, calc.MODEM_MAX_BPS)) for e, r in r_dn.items()}
+    e_1w = calc.P_TX_1W * calc.packet_tx_time(64, r_up_cap[0.0])
+    e_05w = calc.P_TX_05W * calc.packet_tx_time(64, r_up_cap[0.0] / 2)
+    duty = {name[0]: t / 3600 for name, wh, mah, t in sc}
+    bw_tx = 34 / 1643.5 * 100
+    bw_rx = 34 / 1542 * 100
+    span = (1660.5 - 1525) / ((1660.5 + 1525) / 2) * 100
+    pig = (300, 500)
+    load = (40 / pig[1] * 100, 60 / pig[0] * 100)
 
     # ============================================================ 1
     H1("1 Общие положения")
@@ -301,45 +437,53 @@ def body(e1_png):
       "ориентировочные значения запрошенных параметров: массы и габаритов (без корпуса), потребляемой "
       "мощности, диапазона частот, размеров антенны, а также применимости к задаче заказчика.")
     P("1.3 Модуль находится на стадии технического проекта: выполнены прогнозные расчёты, определены "
-      "проектные размеры, разработаны макеты изделий; опытно-конструкторские работы не ведутся. Приведённые "
-      "значения являются расчётными оценками и подлежат подтверждению макетированием и испытаниями.")
+      "проектные размеры, разработаны макеты изделий; опытно-конструкторская работа (ОКР) не ведётся. "
+      "Приведённые значения являются расчётными оценками и подлежат подтверждению макетированием и испытаниями.")
     P("1.4 Проработка выполнена для связи через ретранслятор на геостационарной орбите (ГСО) в L-диапазоне "
       "подвижной спутниковой службы. Для сравнения рассмотрены низкоорбитальные системы и технология 3GPP NTN, "
       "которую поддерживает полётный контроллер заказчика.")
-    P("1.5 В комплект материалов справки входят документы и файлы, перечисленные в приложении А: структурная "
-      "схема, чертёж печатной платы, габаритный чертёж, 3D-модель и файлы для печати массогабаритного макета.")
+    P("1.5 В комплект документации входят документы, перечисленные в приложении А.")
 
     # ============================================================ 2
     H1("2 Основные результаты")
-    P("2.1 Модуль связи через ГСО, совместимый по массе с носителем, реализуем. Основное ограничение — "
-      "антенный тракт, а не электроника модуля. Ориентировочные характеристики модуля приведены в таблице 1.")
-    TBL("Ориентировочные характеристики модуля (кратко)", ["Параметр", "Значение"], [
+    P(f"2.1 Модуль связи через КА на ГСО, совместимый по массе с носителем, реализуем при условии, что над "
+      f"районом работ доступен КА с региональным или узким лучом L-диапазона (добротность G/T не хуже "
+      f"{f1(s['gt_req_100'], 0)} дБ/К). Через глобальный луч канал не замыкается (раздел 6). Основное "
+      f"ограничение — антенный тракт, а не электроника модуля. Готовая альтернатива, доступная в России "
+      f"уже сейчас, — Iridium SBD с массой абонентской части около 20–26 г (подраздел 4.2). Ориентировочные "
+      f"характеристики модуля приведены в таблице {ref('t_summary')}.")
+    TBL("t_summary", "Ориентировочные характеристики модуля (кратко)", ["Параметр", "Значение"], [
         ("Габариты модуля без корпуса", "32 × 22 × 2,5 мм"),
         ("Масса модуля (плата, элементы, экран)", f"{f1(D.MASS_MODULE)} г (не более 4,5 г)"),
         ("Диапазон частот (L-диапазон ПСС)", "ПД 1626,5–1660,5 МГц; ПР 1525–1559 МГц"),
         ("Выходная мощность передатчика", "0,1–1 Вт (20–30 дБм), регулируемая"),
-        ("Потребляемая мощность", "сон ≤ 0,2 мВт; приём ≤ 85 мВт; передача 1,5–2,6 Вт (импульсно)"),
-        ("Пиковый ток от АКБ 3,7 В", "не более 0,8 А"),
-        ("Скорость передачи данных", "ПД 100–2400 бит/с; ПР 300–4800 бит/с (зависит от КА)"),
-        ("Задержка доставки сообщения", "1–5 с"),
+        ("Потребляемая мощность", "сон не более 0,2 мВт; приём не более 85 мВт; передача не более 1,5 Вт "
+                                  "при Pвых 0,5 Вт и не более 2,6 Вт при Pвых 1 Вт (импульсно)"),
+        ("Импульсный ток от АКБ (3,7–3,3 В)", f"{f1(i_lo)}–{f1(i_hi)} А"),
+        ("Скорость передачи (по энергетике, раздел 6)",
+         f"с борта {f1(r_up_cap[0.0], 0)}–{calc.MODEM_MAX_BPS} бит/с при G/T КА 0…+10 дБ/К; "
+         f"на борт {r10(r_dn[20.0])}–{r10(r_dn[30.0])} бит/с при ЭИИМ КА 20–30 дБВт"),
+        ("Задержка доставки сообщения", "1–5 с при скорости не менее 250 бит/с"),
         ("Антенна (базовый вариант)", f"керамическая 25 × 25 × 4 мм на плате 30 × 30 мм, {f1(D.MASS_ANTENNA)} г"),
-        ("Антенна (облегчённый вариант)", "керамическая спиральная ⌀12 × 30 мм, 5–7 г"),
-        ("Масса комплекта связи", f"{f1(m_total)} г (базовый), около {round(m_qha):d} г (облегчённый)"),
-        ("Расход энергии АКБ", f"{f1(sc[0][2], 0)}–{f1(sc[2][2], 0)} мА·ч за час полёта (см. 5.7)"),
-    ], [80, 95])
-    P(f"2.2 Комплект связи займёт {f1(m_total / 60 * 100, 0)}–{f1(m_total / 40 * 100, 0)} % бюджета массы "
-      f"40–60 г в базовом варианте и {f1(m_qha / 60 * 100, 0)}–{f1(m_qha / 40 * 100, 0)} % — в облегчённом.")
-    P("2.3 Задержка любого спутникового канала (секунды и более) исключает пилотирование через спутник в "
-      "реальном времени. Контур стабилизации и навигации должен быть замкнут на борту; через спутник "
-      "передаются телеметрия, маршрутные точки, команды смены режимов и аварийные команды.")
+        ("Антенна (облегчённый вариант)", "керамическая спиральная Ø12 × 30 мм, 5–7 г"),
+        ("Масса комплекта связи", f"{f1(kit)} г (базовый вариант), {f1(kit_l)} г (облегчённый)"),
+        ("Расход заряда АКБ", f"{f1(sc[0][2], 0)}–{f1(sc[3][2], 0)} мА·ч за час полёта "
+                              f"(таблица {ref('t_scen')})"),
+    ], [70, 105])
+    P(f"2.2 Комплект связи займёт {f1(kit / 60 * 100, 0)}–{f1(kit / 40 * 100, 0)} % бюджета массы "
+      f"40–60 г в базовом варианте и {f1(kit_l / 60 * 100, 0)}–{f1(kit_l / 40 * 100, 0)} % — в облегчённом.")
+    P("2.3 Задержка доставки сообщений в рассматриваемых узкополосных спутниковых каналах (от долей секунды "
+      "до минут) и их малая пропускная способность исключают пилотирование через спутник в реальном "
+      "времени. Контур стабилизации и навигации должен быть замкнут на борту; через спутник передаются "
+      "телеметрия, маршрутные точки, команды смены режимов и аварийные команды.")
     P("2.4 Для выбора окончательного варианта необходимы ответы на вопросы раздела 9, в первую очередь о "
       "районах (широтах) работ, объёме данных и доступном ресурсе КА.")
 
     # ============================================================ 3
     H1("3 Исходные данные")
-    P("Исходные данные, принятые для проработки, приведены в таблице 2.")
-    TBL("Исходные данные", ["Параметр", "Значение", "Источник"], [
-        ("Носитель", "голубь, масса птицы 400–550 г", "оценка"),
+    P(f"Исходные данные, принятые для проработки, приведены в таблице {ref('t_input')}.")
+    TBL("t_input", "Исходные данные", ["Параметр", "Значение", "Источник"], [
+        ("Носитель", f"голубь (почтовый), масса птицы {pig[0]}–{pig[1]} г", "оценка, уточнить"),
         ("Масса полезной нагрузки (ПК, камера, АКБ, связь)", "40–60 г", "заказчик"),
         ("Аккумуляторная батарея", "Li-Ion/Li-Pol 1S, 3,7 В, 0,5–1 А·ч", "заказчик"),
         ("Назначение канала", "телеметрия, команды, сбор статистики полёта", "заказчик"),
@@ -347,59 +491,76 @@ def body(e1_png):
         ("Имеющийся задел", "ПК с сотовым модемом, поддерживающим NTN", "заказчик"),
         ("Перспектива", "полностью автономный полёт", "заказчик"),
         ("Широты, объём данных, допустимая задержка", "не заданы, см. раздел 9", "—"),
-    ], [70, 75, 30], align="llc")
+    ], [70, 72, 33], align="llc")
 
     # ============================================================ 4
     H1("4 Анализ вариантов спутниковой связи")
     H2("4.1 Геостационарная и низкие орбиты")
-    P(f"4.1.1 Расстояние до КА на ГСО составляет 35 786–41 700 км (при угле места 20° — {d20:,.0f} км), "
-      "до КА на НОО — 500–2500 км. Потери в свободном пространстве для ГСО на 25–35 дБ больше, поэтому "
-      "при той же мощности передатчика скорость передачи через ГСО на 2–3 порядка ниже. Взамен ГСО "
-      "обеспечивает непрерывную связь без ожидания пролёта КА и без доплеровского сдвига частоты."
-      .replace(",", " "))
-    P("4.1.2 На широтах России КА на ГСО виден под малыми углами места (таблица 3). Антенна на спине птицы "
-      "должна работать на углах места 10–30°, где плоская антенна, направленная в зенит, имеет наименьшее "
-      "усиление, а тело птицы и крылья частично затеняют направление на КА.")
+    P(f"4.1.1 Расстояние до КА на ГСО составляет {n0(d_geo[0])}–{n0(d_geo[1])} км (при угле места 20° — "
+      f"{n0(d20)} км), до КА на НОО — {d_leo[0]:.0f}–{d_leo[1]:.0f} км. Потери в свободном пространстве "
+      f"для ГСО на {dl_min:.0f}–{dl_max:.0f} дБ больше, чем для НОО. Эта разница частично компенсируется "
+      f"большим усилением антенн КА на ГСО, поэтому фактическое снижение скорости передачи зависит от "
+      f"добротности луча КА и составляет от единиц до сотен раз. Взамен ГСО обеспечивает непрерывную связь "
+      f"без ожидания пролёта КА (в отличие от систем с неполной орбитальной группировкой) и пренебрежимо "
+      f"малый доплеровский сдвиг от движения КА; сдвиг от движения носителя (до ±150 Гц) компенсируется "
+      f"подстройкой частоты.")
+    P(f"4.1.2 На широтах России КА на ГСО виден под малыми углами места (таблица {ref('t_elev')}). Антенна "
+      f"на спине птицы должна работать на углах места 10–30°, где плоская антенна, направленная в зенит, "
+      f"имеет наименьшее усиление, а тело птицы и крылья частично затеняют направление на КА.")
     rows = [(f"{lat}° с. ш.", f1(calc.max_elevation_deg(lat))) for lat in (45, 50, 55, 60, 65, 70, 75)]
-    TBL("Максимальный угол места КА на ГСО (КА на меридиане точки)", ["Широта", "Угол места, градусы"],
+    TBL("t_elev", "Максимальный угол места КА на ГСО (КА на меридиане точки)", ["Широта", "Угол места, градусы"],
         rows, [60, 60], align="cc")
-    P("Выше 75–78° с. ш. связь через ГСО невозможна. Если КА смещён по долготе относительно района работ, "
-      "угол места ещё меньше.")
+    P(f"Выше {f1(s['lat_el5'])}° с. ш. угол места КА на ГСО менее 5°, и связь с малогабаритной антенной "
+      f"практически невозможна; выше {f1(s['lat_el0'])}° с. ш. КА на ГСО находится под горизонтом. Если КА "
+      f"смещён по долготе относительно района работ, угол места ещё меньше.")
 
     H2("4.2 Сравнение вариантов")
-    P("Сравнение вариантов спутниковой связи по применимости к носителю массой 400–550 г приведено в "
-      "таблице 4. Значения для серийных изделий взяты по открытым данным производителей и являются "
-      "ориентировочными.")
-    TBL("Сравнение вариантов спутниковой связи", ["Вариант", "Орбита, диапазон", "Масса абонентской части",
-                                                    "Потребление при ПД", "Двусторонний канал, задержка",
-                                                    "Применимость"], [
+    P(f"Сравнение вариантов спутниковой связи по применимости к носителю массой {pig[0]}–{pig[1]} г приведено "
+      f"в таблице {ref('t_cmp')}. Значения для серийных изделий взяты по открытым данным производителей и "
+      f"сообщениям СМИ и являются ориентировочными.")
+    TBL("t_cmp", "Сравнение вариантов спутниковой связи", ["Вариант", "Орбита, диапазон", "Масса абонентской части",
+                                                            "Потребление при ПД", "Двусторонний канал, задержка",
+                                                            "Применимость"], [
         ("Собственный модуль (настоящая проработка)", "ГСО, L (1,5/1,6 ГГц)",
-         f"{round(m_qha):d}–{f1(m_total)} г с антенной", "1,5–2,6 Вт, импульсно",
-         "да; 1–5 с", "применим; нужен ресурс ретранслятора ГСО и разрешение на частоты"),
+         f"{f1(kit_l)}–{f1(kit)} г с антенной", "не более 2,6 Вт при Pвых 1 Вт, импульсно",
+         "да; 1–5 с", f"нужны КА с региональным или узким лучом (G/T не хуже {f1(s['gt_req_100'], 0)} дБ/К), "
+                       "разрешение на частоты и ОКР"),
         ("3GPP NTN NB-IoT (модем заказчика)", "ГСО/НОО, L/S", "модем уже в ПК; антенна 3–10 г",
-         "0,2–1 Вт (класс 23 дБм)", "да; секунды–минуты",
-         "по имеющимся сведениям, коммерческое обслуживание в РФ отсутствует"),
-        ("Iridium SBD (модем класса 9603N)", "НОО 780 км, 1616–1626,5 МГц",
-         "модем 11,4 г + антенна 8–15 г", "≤ 1 Вт средн., пик 1,3 А при 5 В",
-         "да; сообщения до 340 байт, десятки секунд",
-         "глобальное покрытие; правовой режим в РФ требует проверки"),
-        ("Argos / Kinéis (модуль класса KIM1)", "НОО, 401 МГц", "модуль 3 г + штыревая антенна ~18 см",
-         "≈ 2,5 Вт (500 мА при 5 В)", "передача; минуты–часы",
-         "только телеметрия и трекинг, для управления непригоден"),
-        ("«Гонец-М»", "НОО 1500 км, ОВЧ/УВЧ", "терминалы — сотни граммов", "единицы Вт",
+         "≈ 0,7–1,5 Вт (Pвых 23 дБм = 0,2 Вт)", "да; от секунд до минут",
+         "в РФ — только опытные работы (решение ГКРЧ, апрель 2026 г.); коммерческие услуги — "
+         "не ранее 31.03.2029"),
+        ("Iridium SBD (модем класса 9603N)", "НОО 780 км,<br/>1616–1626,5 МГц",
+         "модем 11,4 г + антенна 8–15 г (19–26 г)", "до 1 Вт средн. в сеансе, пик 1,3 А при 5 В "
+                                                     "(нужен повышающий преобразователь)",
+         "да; до 340 байт с борта и до 270 байт на борт; от десятков секунд",
+         "глобальное покрытие; услуги в РФ — через российскую станцию сопряжения (ГКРЧ продлила частоты "
+         "в 2022 г. на 10 лет); готовое решение"),
+        ("Argos / Kinéis (модули классов KIM1, KIM2)", "НОО 650–850 км, 401 МГц",
+         "KIM1 — 3 г + штыревая антенна ~18 см", "≈ 2,5 Вт (KIM1: 500 мА при 5 В)",
+         "KIM1 — только передача; KIM2 — короткие сообщения на борт; минуты–десятки минут",
+         "телеметрия, трекинг, редкие короткие команды; правовой режим в РФ требует проверки"),
+        ("«Гонец-М»", "НОО 1500 км, УВЧ (312–315 / 387–390 МГц)", "терминалы — сотни граммов", "единицы Вт",
          "да; минуты–часы", "по массе неприменим в текущем исполнении"),
         ("«Марафон-IoT» (перспективная)", "НОО ~750 км", "нет данных", "нет данных", "нет данных",
-         "группировка не развёрнута, сроки не определены"),
-    ], [30, 25, 30, 27, 28, 35], font=9)
+         "исключена из нацпроекта «Космос»; пуск первого технологического КА планировался на декабрь "
+         "2025 г.; сроки развёртывания не определены"),
+    ], [25, 28, 27, 29, 31, 35], font=9)
 
     H2("4.3 Выводы по разделу")
+    P("По результатам анализа сделаны следующие выводы:")
     LI([
-        "из доступных сегодня в России вариантов двусторонний канал с массой абонентской части до 20 г "
-        "даёт только собственный модуль ГСО L-диапазона при наличии ресурса ретранслятора;",
-        "технология NTN, поддерживаемая ПК заказчика, предпочтительна при появлении обслуживания над районом "
-        "работ. Модуль может использоваться совместно с ней: интерфейс и антенный разъём модуля это допускают;",
-        "Argos/Kinéis можно применять как независимый резервный канал координат (маяк) массой 3–5 г;",
-        "по каналу через ГСО можно передавать телеметрию и короткие команды, кадры-превью — только в сжатом "
+        "из вариантов, доступных в России сегодня, двусторонний канал с массой абонентской части около "
+        "20–26 г обеспечивает Iridium SBD (модем класса 9603N); необходимо проверить наличие SBD-тарифа и "
+        "порядок ввоза терминала;",
+        f"собственный модуль ГСО L-диапазона легче ({f1(kit_l)}–{f1(kit)} г с антенной) и обеспечивает "
+        "непрерывную доступность без ожидания пролёта, но требует ОКР и наличия над районом работ КА с "
+        "региональным или узким лучом L-диапазона; через глобальный луч канал не замыкается (раздел 6);",
+        "технология NTN, поддерживаемая ПК заказчика, предпочтительна в перспективе, но коммерческое "
+        "обслуживание в России возможно не ранее 2029 г.; интерфейс и антенный разъём модуля допускают "
+        "совместную работу с ней;",
+        "Argos/Kinéis можно применять как независимый резервный канал координат (маяк); модуль KIM1 требует "
+        "питания 4,5–5,5 В;",
+        "по спутниковому каналу можно передавать телеметрию и короткие команды, кадры-превью — только в сжатом "
         "виде (единицы килобайт); видеопоток невозможен.",
     ])
 
@@ -410,195 +571,254 @@ def body(e1_png):
       "передача на частотах 1626,5–1660,5 МГц, приём на частотах 1525–1559 МГц. Передача — короткими "
       "пакетами со случайным доступом (слотированная ALOHA) и резервированием; модуляция π/2-BPSK или OQPSK, "
       "помехоустойчивое кодирование LDPC (скорость 1/2–3/4), перемежение на интервале больше периода взмаха "
-      "крыльев, автоматический запрос повторения. Скорость передачи адаптивная, 100–4800 бит/с, в зависимости "
-      "от энергетики линии. Между сеансами модуль находится в режиме сна. Его пробуждают ПК по линии WAKE "
-      "или встроенные часы реального времени — для приёма команд по расписанию.")
+      f"крыльев, автоматический запрос повторения. Скорость передачи адаптивная, {calc.MODEM_MIN_BPS}–"
+      f"{calc.MODEM_MAX_BPS} бит/с, в зависимости от энергетики линии. Между сеансами модуль находится в "
+      "режиме сна. Его пробуждают ПК по линии WAKE или встроенные часы реального времени — для приёма команд "
+      "по расписанию.")
     H2("5.2 Состав модуля")
-    P("Структурная схема модуля приведена на рисунке 1 и в документе ТЕНШ.464512.001 Э1. Модуль состоит из:")
+    P(f"Структурная схема модуля приведена на рисунке {ref('f_e1')} и в документе ТЕНШ.464512.001&nbsp;Э1. "
+      "Комплект связи состоит из модуля и внешней антенны WA1 с круговой поляризацией, подключаемой "
+      "коаксиальным кабелем к розетке XW1 модуля. Модуль состоит из:")
     LI([
-        "антенны WA1 с круговой поляризацией (внешняя, подключается коаксиальным кабелем к розетке XW1);",
-        "антенного коммутатора A1 с согласующим устройством, перестраиваемым при переходе ПД/ПР;",
+        "антенного коммутатора A1 с согласующим устройством, перестраиваемым на рабочие каналы ПД и ПР;",
         "полосовых фильтров на ПАВ Z1 (ПД) и Z2 (ПР);",
-        "усилителя мощности A2 (до 30 дБм, со встроенным детектором мощности) и МШУ A3 (Кш ≤ 1 дБ);",
+        "усилителя мощности A2 (до 30 дБм, со встроенным детектором мощности) и МШУ A3 (Кш не более 1 дБ);",
         "приёмопередатчика РЧ A4 (квадратурный модулятор/демодулятор, синтезатор частот, АЦП/ЦАП);",
         "микроконтроллера-модема A5 (ЦОС, протокол, шифрование, управление) и памяти A6;",
-        "опорного генератора ТСХО G1 (26 МГц, ±0,5 ppm, коррекция частоты по сигналу КА);",
+        "опорного генератора TCXO G1 (26 МГц, ±0,5 ppm, коррекция частоты по сигналу КА);",
         "узла питания A7 (ключ питания УМ, накопительные конденсаторы, стабилизаторы 1,8 и 3,0 В);",
-        "краевого соединителя X1 (питание, UART, WAKE, IRQ, PPS, отладка).",
+        "розетки коаксиальной XW1 для подключения антенны и краевого соединителя X1 (питание, UART, WAKE, "
+        "IRQ, PPS, отладка).",
     ])
-    FIG(e1_png, "Схема электрическая структурная (уменьшено; полностью — ТЕНШ.464512.001 Э1)", 175)
+    P(f"Функциональным частям A1–A4 на плате {PCB} соответствуют элементы DA1–DA4, A5 — DD1, A6 — DS1, "
+      "A7 — DA5, DA6, VT1, L1, C1, C2.")
+    FIG_ROT("f_e1", e1_png, "Модуль спутниковой связи. Схема электрическая структурная (поле схемы "
+                            "документа ТЕНШ.464512.001&nbsp;Э1)")
 
     H2("5.3 Основные технические характеристики")
-    TBL("Основные технические характеристики модуля (проектные)", ["Наименование параметра", "Значение"], [
+    P(f"Основные технические характеристики модуля приведены в таблице {ref('t_spec')}.")
+    TBL("t_spec", "Основные технические характеристики модуля (проектные)", ["Наименование параметра", "Значение"], [
         ("Орбита КА-ретранслятора", "ГСО"),
         ("Диапазон частот ПД", "1626,5–1660,5 МГц (L-диапазон ПСС)"),
         ("Диапазон частот ПР", "1525–1559 МГц"),
-        ("Альтернативный диапазон", "S: 1980–2010 / 2170–2200 МГц (замена Z1, Z2, A2, A3, WA1)"),
+        ("Альтернативный диапазон", "S: 1980–2010 / 2170–2200 МГц (замена A1–A4, Z1, Z2, WA1, перекомпоновка "
+                                    "РЧ-части платы)"),
         ("Режим работы", "полудуплекс, пакетный"),
         ("Выходная мощность ПД", "20–30 дБм, шаг 1 дБ"),
         ("Модуляция / кодирование", "π/2-BPSK, OQPSK / LDPC 1/2–3/4"),
-        ("Скорость передачи ПД / ПР", "100–2400 / 300–4800 бит/с"),
-        ("Пороговое отношение C/N0 (100 бит/с)", "не более 27 дБГц"),
+        ("Скорость передачи (модем, адаптивная)", f"{calc.MODEM_MIN_BPS}–{calc.MODEM_MAX_BPS} бит/с в обоих "
+                                                  "направлениях"),
+        ("Достижимая скорость по энергетике (раздел 6)",
+         f"с борта {f1(r_up_cap[0.0], 0)}–{calc.MODEM_MAX_BPS} бит/с (G/T КА 0…+10 дБ/К); на борт "
+         f"{r10(r_dn[20.0])}–{r10(r_dn[30.0])} бит/с (ЭИИМ КА 20–30 дБВт)"),
+        (f"Пороговое отношение {CN0_T} (100 бит/с, вероятность ошибки 10<super>−5</super>)",
+         f"не более {f1(s['thr_100'], 0)} дБГц ({f1(s['thr_100_m'], 0)} дБГц с запасом 3 дБ на замирания)"),
         ("Нестабильность частоты", "±0,5 ppm, с автоподстройкой по сигналу КА"),
         ("Напряжение питания", "3,3–4,2 В непосредственно от АКБ 1S"),
-        ("Потребляемая мощность: сон / приём", "≤ 0,2 мВт / ≤ 85 мВт"),
-        ("Потребляемая мощность: ПД 30 / 27 дБм", "≤ 2,6 / ≤ 1,5 Вт"),
+        ("Потребляемая мощность: сон / приём", "не более 0,2 мВт / не более 85 мВт"),
+        ("Потребляемая мощность: ПД 30 / 27 дБм", "не более 2,6 / не более 1,5 Вт"),
         ("Интерфейсы", "UART до 921,6 кбит/с, WAKE, IRQ, PPS, I²C (резерв), SWD"),
-        ("Антенный вход", "50 Ом, коаксиальная розетка малогабаритная"),
+        ("Антенный вход", "50 Ом, розетка коаксиальная малогабаритная XW1"),
         ("Габариты модуля", "32 × 22 × 2,5 мм"),
-        ("Масса модуля", "не более 4,5 г"),
-        ("Температура эксплуатации", "минус 40…плюс 70 °C"),
-    ], [85, 90])
+        ("Масса модуля", f"{f1(D.MASS_MODULE)} г (не более 4,5 г)"),
+        ("Температура эксплуатации", "от минус 40 до плюс 70 °C"),
+    ], [80, 95])
 
     H2("5.4 Антенный тракт")
-    P("5.4.1 Антенна — основная проблема проекта, как и в ранее выполненных проработках для других "
-      "диапазонов. Длина волны на частоте 1,6 ГГц составляет 18,6 см. Полуволновой полосковый излучатель на "
-      "воздушном или пенопластовом основании имел бы размер около 9 × 9 см, что для птицы неприемлемо. "
-      "Керамика с ε ≈ 20 уменьшает излучатель до 2–2,5 см, но сужает рабочую полосу до 1–2 %. Полосы ПД и "
-      "ПР разнесены примерно на 6,5 %, поэтому одна малогабаритная керамическая антенна без дополнительных "
-      "мер не перекрывает обе полосы.")
+    P(f"5.4.1 Антенна — основная проблема проекта, как и в ранее выполненных проработках для других "
+      f"диапазонов. Длина волны на частоте 1,6 ГГц составляет {f1(s['lam_cm'])} см (в рабочих полосах — "
+      f"{f1(s['lam_band'][0])}–{f1(s['lam_band'][1])} см). Полуволновой полосковый излучатель на воздушном или "
+      f"пенопластовом основании имел бы размер около 9 × 9 см, что для птицы неприемлемо. Керамика с "
+      f"ε ≈ 20 уменьшает излучатель до 2–2,5 см, но сужает рабочую полосу до 1–2 %, что меньше ширины каждой "
+      f"из полос ПД и ПР (34 МГц, {f1(bw_tx)} и {f1(bw_rx)} %). Полосы ПД и ПР в целом занимают "
+      f"1525–1660,5 МГц ({f1(span)} %), поэтому одна малогабаритная керамическая антенна без дополнительных мер "
+      f"их не перекрывает.")
     P("5.4.2 В проекте предусмотрены следующие решения:")
     LIA([
-        "электронная перестройка резонанса антенны при переключении ПД/ПР — согласующее устройство в составе "
-        "A1 (базовый вариант). Вносит дополнительные потери около 0,5 дБ;",
+        "электронная перестройка антенны на рабочие каналы ПД и ПР, назначенные оператором, — согласующее "
+        "устройство в составе A1 (базовый вариант); вносит дополнительные потери около 0,5 дБ, учтённые в "
+        "расчёте радиолинии;",
         "двухслойная (этажерочная) керамическая антенна с двумя резонансами — без перестройки, но тяжелее;",
-        "керамическая квадрифилярная спиральная антенна — лучшая ДН на малых углах места и наименьшая масса, "
-        "но выступает над спиной на 30–35 мм;",
+        "керамическая квадрифилярная спиральная антенна — лучшая ДН на малых углах места при массе 5–7 г, но "
+        "выступает над спиной на 30–35 мм; требует той же перестройки на рабочие каналы;",
         "раздельные антенны ПД и ПР — наибольшая масса, применяются только при невозможности остальных "
         "вариантов.",
     ])
-    TBL("Варианты антенны WA1 (оценка)", ["Вариант", "Габариты, мм", "Масса, г", "Усиление: зенит / угол места 20°",
-                                          "Достоинства", "Недостатки"], [
-        ("Керамическая полосковая с перестройкой ПД/ПР (базовый)", "25×25×4 на плате 30×30",
-         f1(D.MASS_ANTENNA), "+3 / −3…−1 дБи", "плоская, отработанная технология", "масса, слабая ДН у горизонта"),
-        ("То же, уменьшенная", "18×18×4 на плате 22×22", "5–6", "0 / −5…−3 дБи", "масса", "−2…3 дБ энергетики"),
-        ("Двухслойная керамическая", "25×25×7", "14–17", "+3 / −3…−1 дБи", "без перестройки", "масса"),
-        ("Спиральная квадрифилярная керамическая", "⌀12×30", "5–7", "+1 / −1…0 дБи",
+    P(f"Характеристики вариантов антенны приведены в таблице {ref('t_ant')}.")
+    TBL("t_ant", "Варианты антенны WA1 (оценка)", ["Вариант", "Габариты, мм", "Масса, г",
+                                                   "Усиление: зенит / угол места 20°, дБи", "Достоинства",
+                                                   "Недостатки"], [
+        ("Керамическая полосковая с перестройкой (базовый)", "25×25×4 на плате 30×30",
+         f1(D.MASS_ANTENNA), "+3 / −3…−1", "плоская, отработанная технология", "масса, слабая ДН у горизонта"),
+        ("То же, уменьшенная", "18×18×4 на плате 22×22 (ε ≈ 35, полоса менее 1 %)", "5–6", "0 / −5…−3",
+         "масса", "энергетика хуже на 2–3 дБ"),
+        ("Двухслойная керамическая", "25×25×7", "14–17", "+3 / −3…−1", "без перестройки", "масса"),
+        ("Спиральная квадрифилярная керамическая", "Ø12×30", "5–7", "+1 / −1…0",
          "ДН у горизонта, масса", "выступает над спиной"),
-    ], [36, 27, 15, 27, 35, 35])
-    P("5.4.3 Влияние носителя. Тело птицы содержит много воды и потому вносит потери и расстраивает "
-      "антенну. Металлизированное основание антенны должно быть обращено к телу: оно уменьшает потери и "
-      "облучение тканей. Взмахи крыльев (5–9 Гц) периодически затеняют антенну. Против таких замираний "
-      "применяются перемежение и повторная передача. В расчёте радиолинии (раздел 6) влияние носителя "
-      "учтено потерями 3 дБ. Это значение необходимо уточнить измерениями на макете, а также оценить нагрев "
-      "тканей при мощности передатчика 1 Вт: при коэффициенте заполнения менее 5 % средняя излучаемая "
-      "мощность не превышает 50 мВт.")
+    ], [34, 30, 14, 27, 35, 35], align="llcccl")
+    P(f"5.4.3 Влияние носителя. Тело птицы содержит много воды и потому вносит потери и расстраивает "
+      f"антенну. Металлизированное основание антенны должно быть обращено к телу: оно уменьшает потери и "
+      f"облучение тканей. Взмахи крыльев (5–9 Гц) периодически затеняют антенну. Против таких замираний "
+      f"применяются перемежение и повторная передача. В расчёте радиолинии (раздел 6) влияние носителя "
+      f"учтено потерями 3 дБ; это значение необходимо уточнить измерениями на макете. Необходимо также "
+      f"оценить нагрев тканей при мощности передатчика 1 Вт: в сценариях А–В (таблица {ref('t_scen')}) "
+      f"коэффициент заполнения не превышает {f1(max(duty['А'], duty['Б'], duty['В']) * 100, 0)} %, и средняя "
+      f"излучаемая мощность — не более {f1(max(duty['А'], duty['Б'], duty['В']) * 1000, 0)} мВт; в сценарии Г — "
+      f"до {f1(duty['Г'] * 100, 0)} % ({f1(duty['Г'] * 1000, 0)} мВт).")
 
     H2("5.5 Конструкция")
-    P("Модуль выполнен на четырёхслойной печатной плате 32 × 22 × 0,6 мм (ТЕНШ.758726.001) с односторонним "
+    P(f"Модуль выполнен на четырёхслойной печатной плате 32 × 22 × 0,6 мм ({PCB}&nbsp;СБ) с односторонним "
       "монтажом. РЧ-тракт закрыт экраном 13,6 × 16,8 × 1,6 мм. Модуль устанавливается пайкой краевых "
       "полуотверстий (20 контактов, шаг 2,54 мм) непосредственно на плату ПК заказчика или на переходную "
-      "плату; корпус не требуется. Влагозащита — лаковым покрытием. Габаритные размеры и состав макета "
-      "приведены в документе ТЕНШ.464512.001 ГЧ, 3D-модель — на рисунках 2 и 3.")
-    FIG(ROOT / "cad" / "renders" / "module_no_shield.png",
+      "плату; корпус не требуется. Влагозащита — лаковым покрытием. Габаритные, установочные и "
+      "присоединительные размеры приведены в документе ТЕНШ.464512.001&nbsp;ГЧ, 3D-модель — на рисунках "
+      f"{ref('f_open')} и {ref('f_kit')}.")
+    FIG("f_open", ROOT / "cad" / "renders" / "module_no_shield.png",
         "3D-модель модуля (экран РЧ-тракта снят): размещение элементов", 120)
-    FIG(ROOT / "cad" / "renders" / "assembly_iso.png",
-        "3D-модель комплекта: модуль, антенна WA1 и соединительный кабель", 120)
+    FIG("f_kit", ROOT / "cad" / "renders" / "assembly_iso.png",
+        "3D-модель комплекта связи: модуль, антенна WA1 и соединительный кабель длиной 60 мм", 120)
 
     H2("5.6 Массовый бюджет")
-    TBL("Масса составных частей (оценка)", ["Составная часть", "Масса, г"],
-        [(n, f1(m)) for n, m in calc.MASS] +
-        [("Итого модуль", f1(sum(m for _, m in calc.MASS)))] +
-        [("Антенна WA1 25×25×4 мм на плате-носителе 30×30 мм", f1(D.MASS_ANTENNA)),
-         ("Кабель коаксиальный ⌀1,13 мм, 60 мм, с разъёмами", f1(D.MASS_CABLE)),
+    P(f"Масса составных частей приведена в таблице {ref('t_mass')}.")
+    TBL("t_mass", "Масса составных частей (оценка)", ["Составная часть", "Масса, г"],
+        [(n, f1(m)) for n, m in D.MASS_MODULE_PARTS] +
+        [("Итого модуль", f1(D.MASS_MODULE)),
+         ("Антенна WA1 25×25×4 мм на плате-носителе 30×30 мм", f1(D.MASS_ANTENNA)),
+         ("Кабель коаксиальный Ø1,13 мм, 60 мм, с разъёмами", f1(D.MASS_CABLE)),
          ("Элементы крепления, клей", f1(D.MASS_MOUNT)),
-         ("Итого комплект связи (базовый вариант)", f1(m_total)),
-         ("Итого комплект связи со спиральной антенной", f"≈ {round(m_qha):d}")],
-        [140, 35], align="lc")
+         ("Итого комплект связи (базовый вариант)", f1(kit)),
+         ("Итого комплект связи со спиральной антенной (6 г)", f1(kit_l))],
+        [145, 30], align="lr")
     P("Массу можно уменьшить ещё на 1–2 г, если разместить элементы модуля непосредственно на плате ПК "
       "(без собственной платы, экрана с рамкой и соединителя). Этот вариант целесообразен после "
       "отработки модуля как самостоятельного изделия.")
 
     H2("5.7 Энергопотребление")
-    TBL("Потребляемая мощность по режимам", ["Режим", "Мощность", "Ток от АКБ 3,7 В"],
-        [(n, f"{f1(w * 1000, 1)} мВт" if w < 1 else f"{f1(w, 2)} Вт", f"{f1(w / calc.V_BAT * 1000, 1)} мА")
-         for n, w in calc.MODES], [95, 40, 40], align="lcc")
-    P("Расход энергии на типовых сценариях приведён в таблице 10. Скорость ПД принята 600 бит/с, пакет "
-      "телеметрии — 64 байта полезных данных; время сеанса включает преамбулу и служебные поля.")
-    TBL("Расход энергии на типовых сценариях", ["Сценарий", "Время ПД за час, с", "Энергия за час, Вт·ч",
-                                                 "Заряд за час, мА·ч", "Доля АКБ 1 А·ч за час, %"],
+    P(f"Потребляемая мощность по режимам приведена в таблице {ref('t_modes')}, расход энергии на типовых "
+      f"сценариях — в таблице {ref('t_scen')}. Скорость ПД в сценариях принята {calc.SCEN_RATE} бит/с "
+      f"(достижима при G/T КА не хуже {f1(s['gt_req_scen'], 1)} дБ/К), пакет телеметрии — 64 байта полезных "
+      "данных; время сеанса включает преамбулу и служебные поля. Время приёма не пересекается со временем "
+      "передачи (полудуплекс).")
+    TBL("t_modes", "Потребляемая мощность по режимам", ["Режим", "Мощность, мВт", "Ток от АКБ 3,7 В, мА"],
+        [(n, f1(w * 1000, 1 if w < 0.001 else 0), f1(w / calc.V_BAT * 1000, 2 if w < 0.001 else 0))
+         for n, w in calc.MODES],
+        [105, 35, 35], align="lrr")
+    TBL("t_scen", "Расход энергии на типовых сценариях", ["Сценарий", "Время ПД за час, с",
+                                                          "Энергия за час, Вт·ч", "Заряд за час, мА·ч",
+                                                          "Доля АКБ 1 А·ч за час, %"],
         [(n, f1(t, 0), f1(wh, 3), f1(mah, 0), f1(mah / 10, 1)) for n, wh, mah, t in sc],
-        [67, 25, 27, 27, 29], align="lcccc")
-    P("Средняя мощность невелика, однако во время передачи ток достигает 0,7–0,8 А, то есть 0,8–1,6 C для "
-      "АКБ ёмкостью 0,5–1 А·ч. Накопительные конденсаторы модуля сглаживают только фронты импульсов "
-      "тока: энергию пакета длительностью 1–2 с отдаёт АКБ. Поэтому АКБ должна допускать импульсный ток "
-      "не менее 2 C с учётом одновременной нагрузки ПК и камеры, особенно при отрицательных температурах.")
+        [67, 25, 27, 27, 29], align="lrrrr")
+    P(f"Средняя мощность невелика, однако во время передачи ток достигает {f1(i_lo)}–{f1(i_hi)} А, то есть "
+      f"{f1(c_lo)}–{f1(c_hi)} C для АКБ ёмкостью 0,5–1 А·ч. Накопительные конденсаторы модуля сглаживают только "
+      "фронты импульсов тока: энергию пакета длительностью 1–3 с отдаёт АКБ. Поэтому АКБ должна допускать "
+      "импульсный ток не менее 2 C с учётом одновременной нагрузки ПК и камеры, особенно при отрицательных "
+      "температурах.")
 
     # ============================================================ 6
     H1("6 Расчёт энергетики радиолинии")
     H2("6.1 Методика")
-    P("Отношение мощности несущей к спектральной плотности шума на входе приёмника определяется по формуле")
-    EQ("<i>C/N</i><sub>0</sub> = ЭИИМ − <i>L</i><sub>св</sub> − <i>L</i><sub>доп</sub> + <i>G/T</i> + 228,6, дБГц,")
-    P("где ЭИИМ — эквивалентная изотропно излучаемая мощность передающей стороны, дБВт; "
-      "<i>L</i><sub>св</sub> — потери в свободном пространстве, дБ; <i>L</i><sub>доп</sub> — дополнительные "
-      "потери (поляризационные, атмосферные, затенение носителем), дБ; <i>G/T</i> — добротность приёмной "
-      "системы, дБ/К; 228,6 — абсолютное значение постоянной Больцмана, дБВт/(К·Гц).", "noind")
-    P("Потери в свободном пространстве и наклонная дальность:")
+    P("Отношение мощности несущей к спектральной плотности шума на входе приёмника определяют по формуле")
+    EQ(f"{CN0} = ЭИИМ − <i>L</i><sub>св</sub> − <i>L</i><sub>доп</sub> + <i>G/T</i> + 228,6,")
+    WHERE([
+        "ЭИИМ — эквивалентная изотропно излучаемая мощность передающей стороны, дБВт;",
+        "<i>L</i><sub>св</sub> — потери в свободном пространстве, дБ;",
+        "<i>L</i><sub>доп</sub> — дополнительные потери (поляризационные, атмосферные, затенение носителем), дБ;",
+        "<i>G/T</i> — добротность приёмной системы, дБ/К;",
+        "228,6 — значение постоянной Больцмана в логарифмических единицах, взятое с обратным знаком "
+        "(10 lg <i>k</i> = −228,6 дБВт/(К·Гц)).",
+    ])
+    P("Потери в свободном пространстве и наклонную дальность определяют по формулам:")
     EQ("<i>L</i><sub>св</sub> = 20 lg(4π<i>d</i>/λ),")
     EQ("<i>d</i> = √((<i>R</i><sub>З</sub> + <i>h</i>)² − (<i>R</i><sub>З</sub> cos ε)²) − <i>R</i><sub>З</sub> sin ε,")
-    P("где <i>R</i><sub>З</sub> = 6378 км — радиус Земли; <i>h</i> = 35 786 км — высота ГСО; ε — угол места. "
-      "Максимальная скорость передачи:", "noind")
-    EQ("10 lg <i>R</i><sub>max</sub> = <i>C/N</i><sub>0</sub> − (<i>E</i><sub>b</sub>/<i>N</i><sub>0</sub>)<sub>треб</sub> − <i>M</i>,")
-    P(f"где (<i>E</i><sub>b</sub>/<i>N</i><sub>0</sub>)<sub>треб</sub> = {f1(calc.EBN0_REQ)} дБ "
-      f"(π/2-BPSK, LDPC 1/2, вероятность ошибки 10<super>−5</super>, с учётом потерь реализации); <i>M</i> = "
-      f"{f1(calc.MARGIN)} дБ — запас на замирания. Расчётный угол места ε = {calc.ELEV_DEG:.0f}° соответствует "
-      "широтам 55–60° с. ш. при смещении КА по долготе.", "noind")
+    WHERE([
+        "<i>d</i> — наклонная дальность, м;",
+        "λ = <i>c</i>/<i>f</i> — длина волны на рабочей частоте <i>f</i>, м (<i>c</i> — скорость света);",
+        "<i>R</i><sub>З</sub> = 6378 км — радиус Земли;",
+        "<i>h</i> = 35 786 км — высота ГСО;",
+        "ε — угол места.",
+    ])
+    P("Максимальную скорость передачи определяют по формуле")
+    EQ(f"10 lg <i>R</i><sub>max</sub> = {CN0} − (<i>E</i><sub>b</sub>/<i>N</i><sub>0</sub>)<sub>треб</sub> − <i>M</i>,")
+    WHERE([
+        f"(<i>E</i><sub>b</sub>/<i>N</i><sub>0</sub>)<sub>треб</sub> = {f1(calc.EBN0_REQ)} дБ — требуемое отношение "
+        "энергии бита к спектральной плотности шума (π/2-BPSK, LDPC 1/2, вероятность ошибки 10<super>−5</super>, "
+        "с учётом потерь реализации);",
+        f"<i>M</i> = {f1(calc.MARGIN)} дБ — запас на замирания.",
+    ])
+    P(f"Расчётный угол места ε = {calc.ELEV_DEG:.0f}° соответствует широтам 55–60° с. ш. при смещении КА по "
+      f"долготе. Усиление антенны принято по нижней границе оценки для базового варианта ({f1(calc.G_ANT, 0)} дБи, "
+      f"таблица {ref('t_ant')}); для спиральной антенны энергетика лучше на 2–3 дБ.")
 
     H2("6.2 Результаты")
-    P("Параметры КА (добротность, ЭИИМ на несущую, зона обслуживания) до выбора КА не известны. Поэтому "
-      "расчёт выполнен для двух значений: 0 дБ/К — глобальный луч или малый КА, +10 дБ/К — зональный луч "
-      "современного КА ПСС.")
+    P(f"Параметры КА (добротность, ЭИИМ на несущую, зона обслуживания) до выбора КА не известны. Поэтому "
+      f"линия «борт — КА» рассчитана для трёх значений G/T КА: −10 дБ/К — глобальный луч, 0 дБ/К — "
+      f"региональный луч, +10 дБ/К — узкий луч современного КА ПСС; линия «КА — борт» — для ЭИИМ КА на "
+      f"несущую 20 и 30 дБВт. Результаты расчёта приведены в таблицах {ref('t_up')} и {ref('t_dn')}.")
 
-    def fmt_rows(a, b):
-        out = []
-        for (n, v1, u), (_, v2, _) in zip(a, b):
-            if u == "км":
-                out.append((n, u, f"{v1:,.0f}".replace(",", " "), f"{v2:,.0f}".replace(",", " ")))
-            elif u == "К":
-                out.append((n, u, f1(v1, 0), f1(v2, 0)))
-            else:
-                out.append((n, u, f1(v1), f1(v2)))
-        return out
+    def fmt(v, u):
+        if u == "км":
+            return n0(v)
+        if u == "К":
+            return f1(v, 0)
+        return f1(v)
 
-    TBL("Линия «борт — КА» (1643,5 МГц, Pвых = 1 Вт)", ["Параметр", "Ед. изм.", "G/T КА = 0 дБ/К",
-                                                        "G/T КА = +10 дБ/К"],
-        fmt_rows(up0, up10) + [("Максимальная скорость передачи", "бит/с", f1(r_up0, 0), f1(r_up10, 0))],
-        [85, 20, 35, 35], align="lccc")
-    TBL("Линия «КА — борт» (1542 МГц)", ["Параметр", "Ед. изм.", "ЭИИМ КА 20 дБВт", "ЭИИМ КА 30 дБВт"],
-        fmt_rows(dn20, dn30) + [("Максимальная скорость передачи", "бит/с", f1(r_dn20, 0), f1(r_dn30, 0))],
-        [85, 20, 35, 35], align="lccc")
-    P(f"Таким образом, при мощности передатчика 1 Вт и антенне с усилением около 0 дБи скорость передачи "
-      f"с борта составляет от {round(r_up0, -1):.0f} до {round(r_up10, -2):.0f} бит/с, на борт — от "
-      f"{round(r_dn20, -1):.0f} до {round(r_dn30, -2):.0f} бит/с. Пакет телеметрии 64 байта передаётся за 1–2 с, команда "
-      "длиной до 32 байт принимается менее чем за 1 с. Снижение мощности передатчика до 0,5 Вт уменьшает "
-      "скорость вдвое при снижении потребления на 40 %.")
+    up_rows = [calc.uplink(gt)[0] for gt in gts]
+    rows = [(n, u, *[fmt(r[i][1], u) for r in up_rows]) for i, (n, _, u) in enumerate(up_rows[0])]
+    rows.append(("Максимальная скорость по энергетике", "бит/с", *[f1(r_up[gt], 0) for gt in gts]))
+    rows.append(("Скорость с учётом ограничения модема", "бит/с",
+                 *[(f1(r_up_cap[gt], 0) if r_up[gt] >= calc.MODEM_MIN_BPS else "не замыкается") for gt in gts]))
+    TBL("t_up", f"Линия «борт — КА» ({f1(calc.F_UP_MHZ)} МГц, Pвых = 1 Вт)",
+        ["Параметр", "Ед. изм.", "G/T КА −10 дБ/К", "G/T КА 0 дБ/К", "G/T КА +10 дБ/К"], rows,
+        [70, 17, 29, 29, 30], align="lcrrr")
+    dn_rows = [calc.downlink(e)[0] for e in calc.EIRP_CASES]
+    rows = [(n, u, *[fmt(r[i][1], u) for r in dn_rows]) for i, (n, _, u) in enumerate(dn_rows[0])]
+    rows.append(("Максимальная скорость по энергетике", "бит/с", *[f1(r_dn[e], 0) for e in calc.EIRP_CASES]))
+    TBL("t_dn", f"Линия «КА — борт» ({f1(calc.F_DN_MHZ, 0)} МГц)",
+        ["Параметр", "Ед. изм.", "ЭИИМ КА 20 дБВт", "ЭИИМ КА 30 дБВт"], rows, [85, 20, 35, 35], align="lcrr")
+    P(f"Таким образом, при мощности передатчика 1 Вт и усилении антенны {f1(calc.G_ANT, 0)} дБи скорость "
+      f"передачи с борта составляет {f1(r_up[0.0], 0)} бит/с через региональный луч и {calc.MODEM_MAX_BPS} бит/с "
+      f"(ограничение модема) через узкий луч; через глобальный луч ({f1(r_up[-10.0], 0)} бит/с) канал не "
+      f"замыкается. Для минимальной скорости 100 бит/с требуется G/T КА не хуже {f1(s['gt_req_100'], 1)} дБ/К. "
+      f"Скорость на борт — {r10(r_dn[20.0])}–{r10(r_dn[30.0])} бит/с. Пакет телеметрии 64 байта передаётся за "
+      f"{f1(t64[10.0])}–{f1(t64[0.0])} с, команда длиной до 32 байт принимается за {f1(t32[30.0])}–{f1(t32[20.0])} с.")
+    P(f"Снижение мощности передатчика до 0,5 Вт вдвое уменьшает скорость и примерно на 40 % — потребляемую "
+      f"мощность и импульсный ток (до {f1(calc.P_TX_05W / calc.V_BAT)} А). Энергия на передачу пакета при этом "
+      f"не уменьшается ({f1(e_05w)} Дж против {f1(e_1w)} Дж при 1 Вт), поэтому режим 0,5 Вт применяется для "
+      "ограничения импульсного тока, а не для экономии заряда АКБ.")
 
     # ============================================================ 7
     H1("7 Ограничения и риски")
-    TBL("Ограничения и риски", ["Риск", "Последствие", "Мера снижения"], [
-        ("Отсутствие доступного ресурса ретранслятора ГСО L/S-диапазона над районом работ",
-         "решение неприменимо", "выбор КА и оператора на этапе 1; вариант S-диапазона"),
-        ("Работа на широтах выше 65–70°, затенение рельефом и лесом", "перерывы связи",
+    P(f"Ограничения и риски проекта приведены в таблице {ref('t_risk')}.")
+    TBL("t_risk", "Ограничения и риски", ["Риск", "Последствие", "Мера снижения"], [
+        ("Отсутствие над районом работ доступного КА на ГСО с региональным или узким лучом L-диапазона",
+         "решение неприменимо", "выбор КА и оператора на этапе 1; при отсутствии ресурса ГСО — переход на "
+                                "низкоорбитальную систему (Iridium SBD) с сохранением интерфейса модуля"),
+        (f"Работа на широтах выше 65° (угол места менее {f1(calc.max_elevation_deg(65), 0)}°) и 70° (менее "
+         f"{f1(calc.max_elevation_deg(70), 0)}°), затенение рельефом и лесом", "перерывы связи",
          "накопление данных в памяти, передача при появлении КА; резервный маяк Argos/Kinéis"),
         ("Регуляторные ограничения: присвоение частот, регистрация РЭС, применение зарубежных систем",
          "сроки, допуск к эксплуатации", "оформление разрешений параллельно с макетированием"),
         ("Потери и расстройка антенны вблизи тела птицы, затенение крыльями", "снижение скорости, замирания",
          "измерения на фантоме, перестройка согласования, перемежение и повторная передача"),
-        ("Импульсный ток 0,8 А, снижение ёмкости АКБ на холоде", "провалы напряжения, перезапуск ПК",
-         "АКБ с допустимым током ≥ 2 C, ограничение мощности ПД при низком заряде"),
-        ("Масса нагрузки 40–60 г — 8–15 % массы голубя; облучение тканей при ПД",
-         "влияние на полёт и состояние птицы", "минимизация массы; согласование с ветеринарами и комиссией по биоэтике; оценка нагрева"),
+        (f"Импульсный ток {f1(i_hi)} А, снижение ёмкости АКБ на холоде", "провалы напряжения, перезапуск ПК",
+         "АКБ с допустимым током не менее 2 C, ограничение мощности ПД при низком заряде"),
+        (f"Масса нагрузки 40–60 г — {f1(load[0], 0)}–{f1(load[1], 0)} % массы голубя ({pig[0]}–{pig[1]} г); "
+         "облучение тканей при ПД",
+         "влияние на полёт и состояние птицы", "минимизация массы; согласование с ветеринарами и комиссией по "
+                                               "биоэтике; оценка нагрева"),
     ], [62, 40, 73])
     P("Примечание — В практике мечения птиц масса прикрепляемого оборудования обычно ограничивается 3–5 % "
-      "массы тела. Заявленный бюджет 40–60 г превышает это значение. Рекомендуем оценить влияние нагрузки "
-      "лётными испытаниями массогабаритного макета до изготовления электрических образцов.")
+      f"массы тела. Заявленный бюджет 40–60 г превышает это значение; один комплект связи ({f1(kit)} г) "
+      f"составляет {f1(kit / pig[1] * 100)}–{f1(kit / pig[0] * 100)} % массы птицы. Рекомендуем оценить влияние "
+      "нагрузки лётными испытаниями массогабаритного макета до изготовления электрических образцов.")
 
     # ============================================================ 8
     H1("8 Предложения по дальнейшим работам")
-    TBL("Предлагаемые этапы работ", ["Этап", "Содержание", "Результат"], [
-        ("1", "Уточнение требований (раздел 9), выбор КА/оператора и диапазона, анализ регуляторных вопросов",
-         "техническое задание, выбор диапазона"),
-        ("2", "Изготовление массогабаритного макета по файлам cad/*.stl с догрузкой до расчётной массы, "
+    P(f"Предлагаемые этапы работ приведены в таблице {ref('t_stages')}.")
+    TBL("t_stages", "Предлагаемые этапы работ", ["Этап", "Содержание", "Результат"], [
+        ("1", "Уточнение требований (раздел 9), выбор КА/оператора и диапазона, анализ регуляторных вопросов; "
+              "сравнение с готовым решением Iridium SBD", "техническое задание, выбор варианта"),
+        ("2", "Изготовление массогабаритного макета по электронной модели с догрузкой до расчётной массы, "
               "лётная проверка на носителе", "подтверждение допустимости массы и размещения"),
         ("3", "Макетирование антенного тракта: 2–3 варианта антенны, измерение КСВ и ДН на фантоме тела птицы",
          "выбор антенны, уточнение потерь"),
@@ -615,62 +835,75 @@ def body(e1_png):
     P("Для выбора окончательного варианта просим ответить на следующие вопросы:")
     LIA([
         "есть ли целевая спутниковая система или КА — низкоорбитальные или геостационарные; через каких "
-        "операторов планировалось использовать NTN;",
+        "операторов планировалось использовать NTN; рассматривался ли Iridium SBD;",
         "в каких районах (на каких широтах) будут работы; характер местности (горы, лес);",
         "какой объём данных требуется: телеметрия (байт за интервал), команды (длина и частота); "
         "нужны ли изображения и с какой частотой;",
         "какова допустимая задержка доставки команд и телеметрии;",
         "какова продолжительность полёта; нужна ли непрерывная готовность к приёму команд;",
-        "где на птице можно разместить антенну и насколько она может выступать над спиной;",
+        "какова масса птиц-носителей; где на птице можно разместить антенну и насколько она может "
+        "выступать над спиной;",
         "как распределяется масса 40–60 г между составными частями; можно ли разместить модуль на плате ПК;",
         "какой модем NTN применён в ПК (модель, диапазоны) — для оценки совместного использования антенны;",
         "каковы планируемые количество изделий и сроки.",
     ])
 
-    # ============================================================ приложения
+    abbreviations()
+
+    # ============================================================ приложение
     story.append(PageBreak())
-    h = Paragraph("Приложение А<br/>(обязательное)<br/>Перечень документов и файлов", sty["hc"])
+    h = Paragraph("Приложение А<br/>(обязательное)<br/>Перечень документов", sty["hc"])
     h._toc = 0
-    h._toc_text = "Приложение А (обязательное) Перечень документов и файлов"
+    h._toc_text = "Приложение А (обязательное) Перечень документов"
     story.append(h)
-    TBL("Перечень документов и файлов", ["Обозначение", "Наименование", "Файл"], [
-        (gost.CODE + " ПЗ", "Справка о возможной реализации. Пояснительная записка", "docs/ТЕНШ.464512.001_ПЗ.pdf"),
-        (gost.CODE + " Э1", "Схема электрическая структурная", "docs/ТЕНШ.464512.001_Э1.pdf"),
-        (gost.CODE + " ГЧ", "Габаритный чертёж (модуль и антенна)", "docs/ТЕНШ.464512.001_ГЧ.pdf"),
-        ("ТЕНШ.758726.001", "Плата печатная. Чертёж", "docs/ТЕНШ.758726.001.pdf"),
-        ("—", "3D-модель модуля, антенны и комплекта (STEP)", "cad/module.step, cad/antenna.step, cad/assembly.step"),
-        ("—", "Файлы для печати массогабаритного макета (STL)", "cad/mockup_module.stl, cad/mockup_antenna.stl"),
-        ("—", "Изображения 3D-модели", "cad/renders/*.png"),
-        ("—", "Исходные тексты расчётов и генераторов документов", "src/*.py"),
-    ], [38, 70, 67])
+    P("Перечень документов комплекта приведён в таблице А.1.")
+    TBL("t_docs", "Перечень документов", ["Обозначение", "Наименование", "Примечание"], [
+        (CODE, "Модуль спутниковой связи сверхкомпактный. "
+                                                            "Пояснительная записка (справка о возможной реализации)", "А4"),
+        (gost.CODE + " Э1", "Схема электрическая структурная", "А3"),
+        (gost.CODE + " ГЧ", "Габаритный чертёж", "А3"),
+        (PCB + " СБ", "Плата печатная многослойная. Сборочный чертёж", "А3"),
+        ("—", "Электронная модель модуля, антенны WA1 и комплекта связи", "формат STEP"),
+        ("—", "Электронная модель массогабаритного макета", "формат STL"),
+    ], [45, 95, 35], align="llc", number="А.1")
+
+    # ============================================================ лист регистрации изменений
     story.append(PageBreak())
     h = Paragraph("Лист регистрации изменений", sty["hc"])
     h._toc = 0
     story.append(h)
-    H = lambda x: Paragraph(x, sty["cellh"])
-    data = [[H("Изм."), H("Номера листов (страниц)"), "", "", "", H("Всего листов (страниц) в докум."),
-             H("№ докум."), H("Входящий № сопроводи&shy;тельного докум. и дата"), H("Подп."), H("Дата")],
-            ["", H("изменён&shy;ных"), H("заменён&shy;ных"), H("новых"), H("аннулиро&shy;ванных"),
+    hs = cell_style(9, "c", True)
+    Hh = lambda x: Paragraph(x, hs)
+    data = [[Hh("Изм."), Hh("Номера листов (страниц)"), "", "", "", Hh("Всего листов (страниц) в докум."),
+             Hh("№<br/>докум."), Hh("Входящий № сопроводи-<br/>тельного докум. и дата"), Hh("Подп."), Hh("Дата")],
+            ["", Hh("изме-<br/>нённых"), Hh("заме-<br/>нённых"), Hh("новых"), Hh("аннули-<br/>рованных"),
              "", "", "", "", ""]] + [[""] * 10 for _ in range(25)]
-    t = Table(data, colWidths=[w * mm for w in (11, 17, 17, 14, 19, 19, 17, 29, 16, 16)],
-              rowHeights=[12 * mm, 10 * mm] + [7.5 * mm] * 25)
+    t = Table(data, colWidths=[w * mm for w in (12, 17, 17, 14, 18, 19, 17, 28, 16, 17)],
+              rowHeights=[14 * mm, 10 * mm] + [7.5 * mm] * 25)
     t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.5, colors.black), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 1.5), ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
                            ("SPAN", (1, 0), (4, 0))] +
                           [("SPAN", (i, 0), (i, 1)) for i in (0, 5, 6, 7, 8, 9)]))
     story.append(t)
 
 
-def build(path, e1_png):
-    gost.register_fonts()
+def _assemble(e1_png):
     story.clear()
-    for k in _counters:
-        _counters[k] = 0
+    for k in _cnt:
+        _cnt[k] = 0
+    _new_refs.clear()
     title_page()
     toc()
-    abbreviations()
     body(e1_png)
-    doc = Doc(path)
-    doc.multiBuild(story, canvasmaker=StampCanvas)
+
+
+def build(path, e1_png):
+    gost.register_fonts()
+    _assemble(e1_png)              # первый проход — номера таблиц и рисунков для ссылок
+    _refs.clear()
+    _refs.update(_new_refs)
+    _assemble(e1_png)
+    Doc(path).multiBuild(story, canvasmaker=StampCanvas)
 
 
 if __name__ == "__main__":
