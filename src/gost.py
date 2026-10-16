@@ -217,7 +217,7 @@ def stamp_form1(pen: Pen, W, name, doc_title="", code=CODE, lit="Т", mass="",
     # графа 2 — обозначение
     pen.text(xr + 60, y0 + 45.5, code, pen.fit(code, 115, 5), "c")
     # графа 1 — наименование
-    lines = name.split("\n") + ([doc_title] if doc_title else [])
+    lines = name.split("\n") + (doc_title.split("\n") if doc_title else [])
     n = len(lines)
     h0 = 5.0 if n == 1 else 3.5
     for i, s in enumerate(lines):
@@ -260,7 +260,7 @@ def stamp_form2(pen: Pen, W, name, doc_title, code=CODE, lit="Т", sheet="", she
     pen.line(xr, y0 + 25, xr + 120, y0 + 25, S)
     pen.line(xr + 70, y0, xr + 70, y0 + 25, S)
     pen.text(xr + 60, y0 + 30.5, code, pen.fit(code, 115, 5), "c")
-    lines = name.split("\n") + [doc_title]
+    lines = name.split("\n") + (doc_title.split("\n") if doc_title else [])
     n = len(lines)
     for i, s in enumerate(lines):
         h = pen.fit(s, 66, 3.5)
