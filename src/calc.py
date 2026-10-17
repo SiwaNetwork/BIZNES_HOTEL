@@ -65,12 +65,17 @@ L_POL_ATM = 0.8      # поляризационные и атмосферные 
 L_BODY = 3.0         # затенение телом птицы, крен, разброс ДН, дБ
 T_ANT = 200.0        # шумовая температура антенны (видит тело птицы и подстилающую поверхность), К
 NF_LNA = 1.0         # коэффициент шума МШУ, дБ
-EBN0_REQ = 4.0       # π/2-BPSK + LDPC 1/2, вероятность ошибки 1e-5, с учётом потерь реализации, дБ
+EBN0_REQ = 4.0       # линия «борт → КА»: BPSK + LDPC 1/2 (кодирует МК), BER 1e-5, с учётом потерь реализации, дБ
 MARGIN = 3.0         # запас на замирания, дБ
 MODEM_MAX_BPS = 2400
 MODEM_MIN_BPS = 100
 
 GT_CASES = [(-10.0, "глобальный луч"), (0.0, "региональный луч"), (10.0, "узкий луч")]
+
+# линия «КА → борт»: демодулятор LoRa приёмопередатчика LR2021 (I/Q-выхода у микросхемы нет)
+LORA_BW = (7812.5, 10416.7)                       # узкие полосы, разрешённые в диапазоне 434 МГц…2,5 ГГц, Гц
+LORA_SNR = {5: -2.5, 6: -5.0, 7: -7.5, 8: -10.0, 9: -12.5, 10: -15.0, 11: -17.5, 12: -20.0}  # порог ОСШ, дБ
+LORA_CR = 4 / 5
 EIRP_CASES = [20.0, 30.0]
 
 
@@ -132,6 +137,27 @@ def downlink(eirp_sat_dbw: float):
     return rows, cn0
 
 
+def lora_rate(sf: int, bw: float) -> float:
+    return sf * bw / 2 ** sf * LORA_CR
+
+
+def lora_best(cn0: float, margin: float = MARGIN):
+    """Наибольшая скорость LoRa (SF, полоса), замыкающаяся при данном C/N0 с запасом; None — не замыкается."""
+    best = None
+    for bw in LORA_BW:
+        for sf, snr in LORA_SNR.items():
+            if cn0 - margin >= snr + db(bw):
+                r = lora_rate(sf, bw)
+                if best is None or r > best[0]:
+                    best = (r, sf, bw)
+    return best
+
+
+def lora_cn0_for(rate_bps: float, margin: float = MARGIN) -> float:
+    """Минимальное C/N0 для скорости не ниже rate_bps (наилучший SF/полоса)."""
+    return min(snr + db(bw) + margin for bw in LORA_BW for sf, snr in LORA_SNR.items() if lora_rate(sf, bw) >= rate_bps)
+
+
 def max_rate_bps(cn0: float) -> float:
     """Максимальная скорость по энергетике (с запасом MARGIN)."""
     return 10 ** ((cn0 - EBN0_REQ - MARGIN) / 10)
@@ -148,9 +174,9 @@ def gt_required(rate_bps: float) -> float:
 
 
 def eirp_required(rate_bps: float) -> float:
-    """ЭИИМ КА, необходимая для скорости rate_bps на линии «КА → борт» (с запасом)."""
+    """ЭИИМ КА, необходимая для скорости rate_bps на линии «КА → борт» (LoRa, с запасом)."""
     _, cn0_at_0 = downlink(0.0)
-    return cn0_threshold(rate_bps, True) - cn0_at_0
+    return lora_cn0_for(rate_bps) - cn0_at_0
 
 
 def packet_tx_time(payload_bytes: int, rate_bps: float, overhead_s: float = 0.4) -> float:
@@ -207,10 +233,12 @@ def summary():
     t_sys, gt_board = board_noise()
     sc = scenarios()
     r_up = {gt: max_rate_bps(c) for gt, c in up.items()}
-    r_dn = {e: max_rate_bps(c) for e, c in dn.items()}
+    lb = {e: lora_best(c) for e, c in dn.items()}
+    r_dn = {e: (b[0] if b else 0.0) for e, b in lb.items()}
     e_pkt_1w = P_TX_1W * packet_tx_time(64, r_up[10.0] if r_up[10.0] < MODEM_MAX_BPS else MODEM_MAX_BPS)
     return dict(
-        up=up, dn=dn, r_up=r_up, r_dn=r_dn, t_sys=t_sys, gt_board=gt_board, scenarios=sc,
+        up=up, dn=dn, r_up=r_up, r_dn=r_dn, lora_dn=lb, t_sys=t_sys, gt_board=gt_board, scenarios=sc,
+        lora_min=(lora_rate(12, LORA_BW[0]), lora_cn0_for(lora_rate(12, LORA_BW[0]))),
         gt_req_100=gt_required(MODEM_MIN_BPS), gt_req_scen=gt_required(SCEN_RATE),
         eirp_req_cmd_1s=None,
         thr_100=cn0_threshold(MODEM_MIN_BPS), thr_100_m=cn0_threshold(MODEM_MIN_BPS, True),
@@ -229,7 +257,8 @@ if __name__ == "__main__":
     for gt, name in GT_CASES:
         print(f"UP G/T={gt:+.0f} ({name}): C/N0={s['up'][gt]:.1f} дБГц, Rmax={s['r_up'][gt]:.0f} бит/с")
     for e in EIRP_CASES:
-        print(f"DOWN EIRP={e:.0f}: C/N0={s['dn'][e]:.1f} дБГц, Rmax={s['r_dn'][e]:.0f} бит/с")
+        b = s['lora_dn'][e]
+        print(f"DOWN EIRP={e:.0f}: C/N0={s['dn'][e]:.1f} дБГц, LoRa SF{b[1]}/{b[2] / 1000:.2f} кГц: {b[0]:.0f} бит/с")
     print(f"Tsys={s['t_sys']:.0f} К, G/T борта={s['gt_board']:.1f} дБ/К")
     print(f"G/T КА для 100 бит/с: {s['gt_req_100']:+.1f} дБ/К; для {SCEN_RATE} бит/с: {s['gt_req_scen']:+.1f} дБ/К")
     print(f"ЭИИМ КА для 100 бит/с на борт: {eirp_required(100):.1f} дБВт")

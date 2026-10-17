@@ -1,0 +1,61 @@
+** Drc report for /home/user/BIZNES_HOTEL/kicad/TENSH.464512.002/TENSH.464512.002.kicad_pcb **
+** Created on 2026-10-17 14:42:37 **
+
+** Found 13 DRC violations **
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(69.9700 mm, 157.4000 mm): PCB Text '12' on F.Silkscreen
+    @(56.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(67.4300 mm, 157.4000 mm): PCB Text '11' on F.Silkscreen
+    @(56.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(56.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+    @(57.2700 mm, 157.4000 mm): PCB Text '7' on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(56.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+    @(59.8100 mm, 157.4000 mm): PCB Text '8' on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(56.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+    @(64.8900 mm, 157.4000 mm): PCB Text '10' on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(56.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+    @(62.3500 mm, 157.4000 mm): PCB Text '9' on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(44.5700 mm, 157.4000 mm): PCB Text '2' on F.Silkscreen
+    @(42.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(47.1100 mm, 157.4000 mm): PCB Text '3' on F.Silkscreen
+    @(42.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(56.0000 mm, 116.2000 mm): PCB Text 'ТЕНШ.758726.002' on F.Silkscreen
+    @(50.9000 mm, 115.5500 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(54.7300 mm, 157.4000 mm): PCB Text '6' on F.Silkscreen
+    @(42.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(52.1900 mm, 157.4000 mm): PCB Text '5' on F.Silkscreen
+    @(42.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(49.6500 mm, 157.4000 mm): PCB Text '4' on F.Silkscreen
+    @(42.1500 mm, 148.8000 mm): Rect on F.Silkscreen
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(56.0000 mm, 116.2000 mm): PCB Text 'ТЕНШ.758726.002' on F.Silkscreen
+
+** Found 0 unconnected pads **
+
+** Found 0 Footprint errors **
+
+** End of Report **

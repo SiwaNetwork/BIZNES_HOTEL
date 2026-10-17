@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "TENSH")(type "KiCad")(uri "${KIPRJMOD}/TENSH.pretty")(options "")(descr "Посадочные места проекта"))
+)
