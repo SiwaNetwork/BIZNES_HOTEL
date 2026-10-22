@@ -163,7 +163,7 @@ def pcb_extra(b):
     poly = [(0.3, 0.3), (W - 0.3, 0.3), (W - 0.3, H - 0.3), (0.3, H - 0.3)]
     b.zone("GND", pcbnew.B_Cu, poly, clearance=0.2)
     b.zone("GND", pcbnew.F_Cu, poly, clearance=0.2)
-    b.text(PCB_CODE, W / 2, H - 1.2, h=0.8)
+    b.text(PCB_CODE, W / 2, H / 2, layer=pcbnew.B_SilkS, h=0.8)      # сторона 2: сторону 1 закрывает модем
     for i, n in enumerate(HOST):
         x = W / 2 - (len(HOST) - 1) * PAD_PITCH / 2 + i * PAD_PITCH
         b.text(str(i + 1), x, 2.6, h=0.8)

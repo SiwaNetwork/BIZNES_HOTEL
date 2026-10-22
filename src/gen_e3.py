@@ -15,7 +15,7 @@ import ugo
 from gost import Pen
 
 W, H = gost.A3L
-X_MIN, X_MAX, Y_TOP = 26.0, 413.0, 280.0      # верх — ниже графы 26 (ГОСТ 2.104)
+X_MIN, X_MAX, Y_TOP = 26.0, 413.0, 274.0      # верх — ниже графы 26 (ГОСТ 2.104)
 STAMP_X, STAMP_Y = W - 5 - 185, 62.0       # верх основной надписи формы 1 (+ поле примечаний)
 GND_NETS = ("GND",)
 PASSIVE_KINDS = ("R", "C", "L", "FB", "D")
