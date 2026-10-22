@@ -1,6 +1,8 @@
 """Сборка комплекта: python3 src/build.py  (3D-рендер требует дисплей; без него — xvfb-run).
 
-Порядок: 3D-модель и рендеры → Э1 → сборочный чертёж платы → ГЧ → ПЗ (с включением рисунков).
+Порядок: 3D-модель и рендеры → Э1 → сборочный чертёж платы → ГЧ → ПЗ (с включением рисунков) →
+Э3, ПЭ3, спецификации обоих модулей → документы варианта Iridium (ТЕНШ.464512.002).
+Проекты KiCad (схема, плата, трассировка, Gerber) собираются отдельно: python3 src/build_hw.py lband|iridium.
 """
 import subprocess
 import sys
@@ -44,6 +46,10 @@ def main():
         old.unlink()
     gen_gch.build(DOCS / "ТЕНШ.464512.001_ГЧ.pdf", ROOT / "cad" / "renders" / "assembly_iso.png")
     gen_pz.build(DOCS / "ТЕНШ.464512.001_ПЗ.pdf", e1_figure())
+    import gen_hw_docs, gen_iri
+    for which in ("lband", "iridium"):
+        gen_hw_docs.build(which)
+    gen_iri.main(no_3d="--no-3d" in sys.argv)
     print("Готово:", *sorted(p.name for p in DOCS.glob("*.pdf")), sep="\n  ")
 
 
