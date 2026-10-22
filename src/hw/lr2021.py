@@ -24,8 +24,9 @@ LR2021_PINS = [
     Pin("31", "RFI_HF", "R", "input"), Pin("32", "RFO_HF", "R", "output"), Pin("33", "GND", "B", "power_in"),
 ]
 # площадка 33 — открытая контактная площадка (EP, вывод 0 по документации Semtech)
+# G1: выводы 1 и 2 — общий, 3 — выход, 4 — питание (три независимых символа серии ECS-TXO-20CSMV4)
 
-TCXO_PINS = [Pin("1", "VC", "L", "no_connect"), Pin("2", "GND", "B", "power_in"),
+TCXO_PINS = [Pin("1", "GND", "B", "power_in"), Pin("2", "GND", "B", "power_in"),
              Pin("3", "OUT", "R", "output"), Pin("4", "VDD", "L", "power_in")]
 
 
@@ -45,7 +46,7 @@ def add(d, xy, nets):
     for pin, net in conn.items():
         d.connect(net, "DA4", pin)
     # питание VBAT 3,0 В через ферритовый фильтр
-    d.add(FB("L2", "600 Ом", "0402", mpn="BLM15AG601SN1D", mfr="Murata", pos=P("L2")), **{"1": n["V3"], "2": "LR_VBAT"})
+    d.add(FB("L1", "600 Ом", "0402", mpn="BLM15AG601SN1D", mfr="Murata", pos=P("L1")), **{"1": n["V3"], "2": "LR_VBAT"})
     d.add(C("C10", "10 мкФ", "0603", "6,3 В X5R", mpn="GRM188R60J106ME47", mfr="Murata", pos=P("C10")),
           **{"1": "LR_VBAT", "2": "GND"})
     d.add(C("C11", "1 мкФ", "0402", "10 В X5R", mpn="GRM155R61A105KE15", mfr="Murata", pos=P("C11")),
@@ -53,17 +54,17 @@ def add(d, xy, nets):
     d.add(C("C12", "0,1 мкФ", "0201", "10 В X5R", mpn="GRM033R61A104KE15", mfr="Murata", pos=P("C12")),
           **{"1": "LR_VBAT", "2": "GND"})
     # SIMO-преобразователь
-    d.add(L("L3", "2,2 мкГн", "0603", "±20 %", mpn="LQM18PN2R2MFRL", mfr="Murata", pos=P("L3"), height=0.9,
+    d.add(L("L2", "2,2 мкГн", "0603", "±20 %", mpn="LQM18PN2R2MFRL", mfr="Murata", pos=P("L2"), height=0.9,
             name_ru="Катушка индуктивности LQM18PN2R2MFRL 2,2 мкГн ±20 %"),
           **{"1": "LR_LXA", "2": "LR_LXB"})
     d.add(C("C13", "4,7 мкФ", "0402", "6,3 В X5R", mpn="GRM155R60J475ME47", mfr="Murata", pos=P("C13")),
           **{"1": "LR_VDCC1", "2": "GND"})
-    d.add(FB("L4", "600 Ом", "0402", mpn="BLM15AG601SN1D", mfr="Murata", pos=P("L4")), **{"1": "LR_VDCC1", "2": "LR_VDCC"})
+    d.add(FB("L3", "600 Ом", "0402", mpn="BLM15AG601SN1D", mfr="Murata", pos=P("L3")), **{"1": "LR_VDCC1", "2": "LR_VDCC"})
     d.add(C("C14", "1 мкФ", "0402", "10 В X5R", mpn="GRM155R61A105KE15", mfr="Murata", pos=P("C14")),
           **{"1": "LR_VDCC", "2": "GND"})
     d.add(C("C15", "4,7 мкФ", "0402", "6,3 В X5R", mpn="GRM155R60J475ME47", mfr="Murata", pos=P("C15")),
           **{"1": "LR_VPAX1", "2": "GND"})
-    d.add(FB("L5", "600 Ом", "0402", mpn="BLM15AG601SN1D", mfr="Murata", pos=P("L5")), **{"1": "LR_VPAX1", "2": "LR_VPAX"})
+    d.add(FB("L4", "600 Ом", "0402", mpn="BLM15AG601SN1D", mfr="Murata", pos=P("L4")), **{"1": "LR_VPAX1", "2": "LR_VPAX"})
     d.add(C("C16", "2,2 мкФ", "0402", "6,3 В X5R", mpn="GRM155R60J225ME15", mfr="Murata", pos=P("C16")),
           **{"1": "LR_VPAX", "2": "GND"})
     d.add(C("C17", "47 пФ", "0201", "25 В C0G", mpn="GRM0335C1E470JA01", mfr="Murata", pos=P("C17")),
@@ -72,16 +73,16 @@ def add(d, xy, nets):
     d.add(ic("G1", "ECS-TXO-20CSMV4-320-AY-TR", "Crystal:Crystal_SMD_2016-4Pin_2.0x1.6mm", TCXO_PINS,
              "Генератор кварцевый термокомпенсированный ECS-TXO-20CSMV4-320-AY-TR 32 МГц ±0,5 ppm",
              mfr="ECS", pos=P("G1"), body=(2.0, 1.6), height=0.8, kind="OSC", mass=0.01, group="G1"),
-          **{"2": "GND", "3": "TCXO_OUT", "4": "LR_VTCXO"})
+          **{"1": "GND", "2": "GND", "3": "TCXO_OUT", "4": "LR_VTCXO"})
     d.add(C("C18", "0,1 мкФ", "0201", "10 В X5R", mpn="GRM033R61A104KE15", mfr="Murata", pos=P("C18")),
           **{"1": "LR_VTCXO", "2": "GND"})
     d.add(R("R4", "220 Ом", "0201", mpn="RC0201FR-07220RL", mfr="Yageo", pos=P("R4")), **{"1": "TCXO_OUT", "2": "TCXO_AC"})
     d.add(C("C19", "10 пФ", "0201", "25 В C0G", mpn="GRM0335C1E100JA01", mfr="Murata", pos=P("C19")),
           **{"1": "TCXO_AC", "2": "LR_XTA"})
     # ВЧ-выход: питание выходного каскада от VR_PA через дроссель, последовательное согласование 50 Ом
-    d.add(L("L6", "27 нГн*", "0201", mpn="LQP03TN27NJ02", mfr="Murata", pos=P("L6"), note="Подбирают при настройке"),
+    d.add(L("L5", "27 нГн*", "0201", mpn="LQP03TN27NJ02", mfr="Murata", pos=P("L5"), note="Подбирают при настройке"),
           **{"1": "LR_VRPA", "2": "LR_RFO"})
-    d.add(L("L7", "2,2 нГн*", "0201", mpn="LQP03TN2N2B02", mfr="Murata", pos=P("L7"), note="Подбирают при настройке"),
+    d.add(L("L6", "2,2 нГн*", "0201", mpn="LQP03TN2N2B02", mfr="Murata", pos=P("L6"), note="Подбирают при настройке"),
           **{"1": "LR_RFO", "2": "LR_RFO1"})
     d.add(C("C20", "1,5 пФ*", "0201", "25 В C0G", mpn="GRM0335C1E1R5BA01", mfr="Murata", pos=P("C20"),
             note="Подбирают при настройке"), **{"1": "LR_RFO1", "2": "GND"})
@@ -90,7 +91,7 @@ def add(d, xy, nets):
     # ВЧ-вход: Г-образное согласование 50 Ом
     d.add(C("C22", "10 пФ", "0201", "25 В C0G", mpn="GRM0335C1E100JA01", mfr="Murata", pos=P("C22")),
           **{"1": n["RFI"], "2": "LR_RFI1"})
-    d.add(L("L8", "3,3 нГн*", "0201", mpn="LQP03TN3N3B02", mfr="Murata", pos=P("L8"), note="Подбирают при настройке"),
+    d.add(L("L7", "3,3 нГн*", "0201", mpn="LQP03TN3N3B02", mfr="Murata", pos=P("L7"), note="Подбирают при настройке"),
           **{"1": "LR_RFI1", "2": "LR_RFI"})
     d.add(C("C23", "1,2 пФ*", "0201", "25 В C0G", mpn="GRM0335C1E1R2BA01", mfr="Murata", pos=P("C23"),
             note="Подбирают при настройке"), **{"1": "LR_RFI", "2": "GND"})

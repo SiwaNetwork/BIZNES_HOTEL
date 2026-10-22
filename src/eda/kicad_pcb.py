@@ -150,6 +150,145 @@ class Builder:
             if name in self.nets:
                 self.nets[name].SetNetClass(self.b.GetDesignSettings().m_NetSettings.m_NetClasses[cls])
 
+    # ---------------------------------------------------------------- авторасстановка
+    def _crt(self, fp):
+        """Прямоугольник посадочного места (по слою F.CrtYd, иначе по площадкам + 0,25 мм) относительно его центра."""
+        fp.BuildCourtyardCaches()
+        cy = fp.GetCourtyard(pcbnew.F_CrtYd)
+        if cy.OutlineCount():
+            x0, y0, x1, y1 = UB(cy.BBox())
+        else:
+            bbs = [UB(p.GetBoundingBox()) for p in fp.Pads()]
+            x0, y0 = min(b[0] for b in bbs) - 0.25, min(b[1] for b in bbs) - 0.25
+            x1, y1 = max(b[2] for b in bbs) + 0.25, max(b[3] for b in bbs) + 0.25
+        cx, cy_ = U(fp.GetPosition())
+        return x0 - cx, y0 - cy_, x1 - cx, y1 - cy_
+
+    def autoplace(self, near=None, regions=(), edge=0.3, step=0.1, rmax=7.0):
+        """Мелкие элементы (R, C, L, FB без заданных координат) ставятся возле вывода, к цепи которого
+        подключены: near = {поз.: (поз. ИС, вывод)} — явная привязка (развязывающие конденсаторы),
+        иначе — цепь с наименьшим числом выводов ИС. regions — зоны экрана (x0, y0, x1, y1): элемент целиком
+        внутри зоны, если внутри неё вывод привязки, иначе целиком снаружи. Пересечение прямоугольников
+        посадочных мест не допускается. Возвращает число расставленных элементов."""
+        import math as _m
+        near = near or {}
+        todo = [r for r, p in self.d.parts.items() if p.kind in ("R", "C", "L", "FB") and tuple(p.pos[:2]) == (0, 0)]
+        placed = set(self.fps) - set(todo)
+        obst = []
+        for ref in placed:
+            fp, part = self.fps[ref], self.d.parts[ref]
+            if part.kind in ("PAD", "SHIELD", "MH"):
+                for pad in fp.Pads():
+                    x0, y0, x1, y1 = UB(pad.GetBoundingBox())
+                    m = 0.35 if pad.GetDrillSize().x > 0 and part.kind == "MH" else 0.15
+                    obst.append((x0 - m, y0 - m, x1 + m, y1 + m))
+            else:
+                cx, cy = U(fp.GetPosition())
+                a = self._crt(fp)
+                obst.append((cx + a[0], cy + a[1], cx + a[2], cy + a[3]))
+
+        def pad_xy(ref, pin):
+            for pad in self.fps[ref].Pads():
+                if pad.GetNumber() == pin:
+                    return U(pad.GetPosition())
+            raise KeyError(f"{ref}.{pin}")
+
+        def targets(ref, net):
+            return [(r, pn) for r, pn in self.d.nets.get(net, []) if r != ref and r in placed]
+
+        def is_ic(r):       # краевые контакты — не точка привязки: элемент ставится у вывода ИС
+            return self.d.parts[r].kind not in ("R", "C", "L", "FB", "PAD")
+
+        n_done, pending = 0, list(todo)
+        while pending:
+            progress = False
+            for ref in list(pending):
+                conn = self.d.pins_of(ref)
+                if ref in near:
+                    r0, p0 = near[ref]
+                    net = self.d.net_of(r0, p0)
+                    apin = next((k for k, v in conn.items() if v == net),
+                                next(k for k, v in conn.items() if v != "GND"))
+                    anchor = pad_xy(r0, p0)
+                else:
+                    best = None
+                    for pin, net in conn.items():
+                        if net == "GND":
+                            continue
+                        t = targets(ref, net)
+                        if not t:
+                            continue
+                        ics = [x for x in t if is_ic(x[0])]
+                        key = (0 if ics else 1, len(self.d.nets[net]))
+                        if best is None or key < best[0]:
+                            best = (key, pin, net, (ics or t)[0])
+                    if best is None:
+                        continue
+                    _, apin, net, (r0, p0) = best
+                    anchor = pad_xy(r0, p0)
+                others = []
+                for pin, nt in conn.items():
+                    if pin != apin and nt != "GND":
+                        others += [pad_xy(r, pn) for r, pn in targets(ref, nt)]
+                other = (sum(x for x, _ in others) / len(others), sum(y for _, y in others) / len(others)) if others else None
+                inside = [rg for rg in regions if rg[0] <= anchor[0] <= rg[2] and rg[1] <= anchor[1] <= rg[3]]
+                fp = self.fps[ref]
+                variants = []
+                for rot in (0, 90, 180, 270):
+                    fp.SetOrientationDegrees(rot)
+                    fp.SetPosition(V(0, 0))
+                    offs = {pad.GetNumber(): U(pad.GetPosition()) for pad in fp.Pads() if pad.GetNumber()}
+                    variants.append((rot, offs, self._crt(fp)))
+                loc = [o for o in obst if o[2] > anchor[0] - rmax - 3 and o[0] < anchor[0] + rmax + 3
+                       and o[3] > anchor[1] - rmax - 3 and o[1] < anchor[1] + rmax + 3]
+                found, k_found = None, None
+                kmax = int(rmax / step)
+                for k in range(kmax + 1):
+                    if k_found is not None and k > k_found + 4:
+                        break
+                    ring = [(i, j) for i in range(-k, k + 1) for j in (-k, k)] + \
+                           [(i, j) for i in (-k, k) for j in range(-k + 1, k)] if k else [(0, 0)]
+                    for i, j in ring:
+                        for rot, offs, a in variants:
+                            ox, oy = offs[apin]
+                            cx, cy = anchor[0] + i * step - ox, anchor[1] + j * step - oy
+                            r = (cx + a[0], cy + a[1], cx + a[2], cy + a[3])
+                            if r[0] < edge or r[1] < edge or r[2] > self.W - edge or r[3] > self.H - edge:
+                                continue
+                            ok = True
+                            for rg in regions:
+                                if rg in inside:
+                                    ok = rg[0] <= r[0] and r[2] <= rg[2] and rg[1] <= r[1] and r[3] <= rg[3]
+                                else:
+                                    ok = r[2] <= rg[0] or r[0] >= rg[2] or r[3] <= rg[1] or r[1] >= rg[3]
+                                if not ok:
+                                    break
+                            if not ok or any(r[0] < o[2] - 1e-6 and o[0] < r[2] - 1e-6 and r[1] < o[3] - 1e-6
+                                             and o[1] < r[3] - 1e-6 for o in loc):
+                                continue
+                            cost = _m.hypot(i * step, j * step)
+                            if other:
+                                qx, qy = [v for kk, v in offs.items() if kk != apin][0]
+                                cost += 0.5 * _m.hypot(cx + qx - other[0], cy + qy - other[1])
+                            if found is None or cost < found[0]:
+                                found = (cost, cx, cy, rot, r)
+                                if k_found is None:
+                                    k_found = k
+                if found is None:
+                    raise RuntimeError(f"{ref}: нет места возле {anchor}")
+                _, cx, cy, rot, r = found
+                fp.SetOrientationDegrees(rot)
+                fp.SetPosition(V(cx, cy))
+                obst.append(r)
+                self.d.parts[ref].pos = (round(cx, 3), round(cy, 3), rot)
+                placed.add(ref)
+                pending.remove(ref)
+                n_done += 1
+                progress = True
+            if not progress:
+                raise RuntimeError(f"не к чему привязать: {pending}")
+        return n_done
+
     def hole(self, x, y, d):
         fp = self.load_fp(f"MountingHole:MountingHole_{d:.1f}mm".replace(".", "."))
         fp.SetPosition(V(x, y))
@@ -370,6 +509,8 @@ class Builder:
                 bb = pad.GetBoundingBox()
                 biggest = max(fp.Pads(), key=lambda q: q.GetSize().x * q.GetSize().y)
                 is_ep = len(fp.Pads()) > 4 and pad is biggest or pad.GetNumber() == biggest.GetNumber() and len(fp.Pads()) > 4
+                if is_ep and any(q.GetAttribute() == pcbnew.PAD_ATTRIB_PTH and q.GetNetCode() == code for q in fp.Pads()):
+                    continue                                   # в посадочном месте уже есть теплоотводящие отверстия
                 if is_ep and min(pcbnew.ToMM(pad.GetSize().x), pcbnew.ToMM(pad.GetSize().y)) >= d + 0.1 and \
                         not any(k == "c" and nc == code and _m.hypot(cx - g[0], cy - g[1]) < 0.3 for k, g, nc in obst):
                     self.via(net, cx, cy, d, drill, locked=locked)    # отверстие в теплоотводящей площадке

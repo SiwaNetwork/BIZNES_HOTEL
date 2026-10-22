@@ -15,7 +15,7 @@ import ugo
 from gost import Pen
 
 W, H = gost.A3L
-X_MIN, X_MAX, Y_TOP = 26.0, 413.0, 288.0
+X_MIN, X_MAX, Y_TOP = 26.0, 413.0, 280.0      # верх — ниже графы 26 (ГОСТ 2.104)
 STAMP_X, STAMP_Y = W - 5 - 185, 62.0       # верх основной надписи формы 1 (+ поле примечаний)
 GND_NETS = ("GND",)
 PASSIVE_KINDS = ("R", "C", "L", "FB", "D")
@@ -43,8 +43,8 @@ class Cell:
         n = max(len(pl), len(pr), 1)
         self.box_h = (n - 1) * ugo.PITCH + 10
         self.ic_w = self.lab_l + 5 + self.box_w + 5 + self.lab_r
-        # обвязка: по 4 элемента в ряд, шаг 22 мм, высота ряда 34 мм
-        self.cols = max(1, min(len(passives), int(max(self.ic_w, 88) // 22)))
+        # обвязка: не более трёх рядов, шаг 22 мм, высота ряда 34 мм
+        self.cols = max(1, min(len(passives), max(int(max(self.ic_w, 88) // 22), -(-len(passives) // 3))))
         rows = (len(passives) + self.cols - 1) // self.cols
         self.w = max(self.ic_w, self.cols * 22) + 6
         self.h = 12 + self.box_h + (rows * 34 + 4 if passives else 0) + 4

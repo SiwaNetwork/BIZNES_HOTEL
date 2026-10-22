@@ -75,7 +75,7 @@ def build(path, render_png):
     p.line(h1x - 3.0, h1y, mx - 0.8, h1y, LW_DIM)
     leader(p, xr - K * 1.6 - 0.8, yt - K * 1.6 - 0.8, xr + 6, yt + 2, "⌀1,1 (2 отв.)")
     leader(p, mx + K * 16, my + K * 17, xr + 6, my + 36, "Экран РЧ-тракта")
-    leader(p, mx + K * xw[1], my + K * xw[2], xr + 6, my + 26, "XW1 (центр 2,3; 11,0)")
+    leader(p, mx + K * xw[1], my + K * xw[2], xr + 6, my + 26, f"XW1 (центр {xw[1]:g}; {xw[2]:g})".replace(".", ","))
     leader(p, mx + K * 27.43, my + K * 0.8, xr + 6, my + 14, "X1 — 1,2×1,6, 20 конт.")
 
     # модуль, вид сбоку

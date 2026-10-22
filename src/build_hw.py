@@ -32,6 +32,7 @@ def make_footprints(lib):
     fpl.bga524n6(lib)
     fpl.bgs12p2l6(lib)
     fpl.qfn10_2x2(lib)
+    fpl.saw_sm3030_6(lib)
 
 
 def kicad_env():
@@ -45,6 +46,14 @@ def kicad_env():
             shutil.copy(src, cfg / t)
 
 
+def save_placement(d, path):
+    """Координаты элементов (мм от левого нижнего угла платы, вид сверху) — для чертежей и 3D-модели."""
+    import json
+    rows = [dict(ref=r, kind=p.kind, x=round(p.pos[0], 3), y=round(p.pos[1], 3), rot=int(p.pos[2]) % 360,
+                 body=list(p.body), h=p.height) for r, p in d.parts.items() if p.kind not in ("PAD", "MH", "SHIELD")]
+    path.write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
+
+
 def build_kicad(mod, route=True):
     kicad_env()
     d = mod.design()
@@ -56,6 +65,8 @@ def build_kicad(mod, route=True):
     out.mkdir(parents=True, exist_ok=True)
     lib = out / "TENSH.pretty"
     make_footprints(lib)
+    if hasattr(mod, "footprints"):
+        mod.footprints(lib)
     # схема
     kicad_sch.write(d, out / f"{name}.kicad_sch", name, paper="A1", sheet_w=841)
     kicad_sch.write_sym_lib(d, out / "TENSH.kicad_sym")
@@ -65,6 +76,10 @@ def build_kicad(mod, route=True):
     b.rules(**mod.RULES)
     b.outline(r=mod.CORNER_R)
     b.place_all()
+    if hasattr(mod, "place"):
+        print(f"  расставлено автоматически: {mod.place(b)}")
+    if hasattr(mod, "PLACEMENT"):
+        save_placement(d, Path(gost.ROOT) / "src" / mod.PLACEMENT)
     mod.pcb_extra(b)
     b.project_file()
     b.reload()

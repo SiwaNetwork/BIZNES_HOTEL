@@ -165,3 +165,70 @@ def qfn10_2x2(lib_dir):
     lines.append(_rect("F.Fab", -1.0, -1.0, 1.0, 1.0, 0.05))
     lines.append(_rect("F.CrtYd", -1.55, -1.55, 1.55, 1.55, 0.05))
     return write(lib_dir, name, lines)
+
+
+def castellated_2rows(lib_dir, n, span, pitch=2.54, w=1.2, l=1.6, drill=0.8):
+    """Два ряда краевых полуотверстий на противоположных кромках (нижний — выводы 1…n слева направо,
+    верхний — n+1…2n справа налево). Начало координат — середина нижней кромки; span — ширина платы."""
+    name = f"Castellated_2x{n:02d}_P{pitch}mm_Span{span}mm"
+    lines = _hdr(name, f"Castellated edge pads 2x{n}, pitch {pitch} mm, rows {span} mm apart", smd=False)
+    x0 = -(n - 1) * pitch / 2
+    for row in (0, 1):
+        ye, s = (0.0, -1) if row == 0 else (-span, 1)      # кромка и направление внутрь платы (ось Y KiCad вниз)
+        for i in range(n):
+            num = i + 1 if row == 0 else 2 * n - i
+            x = x0 + i * pitch
+            lines.append(f'  (pad "{num}" thru_hole circle (at {x:.3f} {ye:.3f}) (size {drill + 0.4:.2f} {drill + 0.4:.2f}) '
+                         f'(drill {drill}) (layers "*.Cu" "*.Mask") (property pad_prop_castellated))')
+            for lay in ('"F.Cu" "F.Mask"', '"B.Cu" "B.Mask"'):
+                lines.append(f'  (pad "{num}" smd roundrect (at {x:.3f} {ye + s * (l + 0.3) / 2:.3f}) '
+                             f'(size {w} {l - 0.3:.2f}) (layers {lay}) (roundrect_rratio 0.15))')
+        lines.append(_rect("F.Fab", x0 - w / 2, min(ye, ye + s * l), -x0 + w / 2, max(ye, ye + s * l)))
+    return write(lib_dir, name, lines)
+
+
+def saw_sm3030_6(lib_dir):
+    """Фильтр ПАВ в корпусе SM3030-6 (3,0×3,0 мм, 6 площадок): 1–3 слева сверху вниз, 4–6 справа снизу вверх;
+    вход — 2, выход — 5, остальные — общий (по техописанию RFMi SF2236E)."""
+    pads = [(1, -1.2, -0.95, 0.8, 0.6), (2, -1.2, 0.0, 0.8, 0.6), (3, -1.2, 0.95, 0.8, 0.6),
+            (4, 1.2, 0.95, 0.8, 0.6), (5, 1.2, 0.0, 0.8, 0.6), (6, 1.2, -0.95, 0.8, 0.6)]
+    return generic_smd(lib_dir, "SAW_SM3030-6_3.0x3.0mm", "SAW filter, SM3030-6 ceramic package 3.0x3.0 mm", pads,
+                       (3.0, 3.0), silk=False)
+
+
+def shield_frame_gaps(lib_dir, L, W, wall=0.4, gaps=()):
+    """Рамка экрана с проёмами для микрополосковых линий. gaps: [(сторона 'L'|'R'|'T'|'B', смещение от центра
+    стороны вдоль неё (мм, ось Y — вверх), ширина проёма)]. Начало координат — центр рамки."""
+    name = f"RF_Shield_Frame_{L}x{W}mm" + ("_gap" if gaps else "")
+    lines = _hdr(name, f"Solder-down RF shield frame {L}x{W} mm with trace openings")
+    hl, hw = L / 2, W / 2
+    sides = {"B": ((-hl, hw - wall / 2), (hl, hw - wall / 2), "x"), "T": ((-hl, -hw + wall / 2), (hl, -hw + wall / 2), "x"),
+             "L": ((-hl + wall / 2, -hw + wall), (-hl + wall / 2, hw - wall), "y"),
+             "R": ((hl - wall / 2, -hw + wall), (hl - wall / 2, hw - wall), "y")}
+    for side, (a, b, ax) in sides.items():
+        cuts = sorted(((-off if ax == "y" else off) - g / 2, (-off if ax == "y" else off) + g / 2)
+                      for s, off, g in gaps if s == side)
+        lo, hi = (a[0], b[0]) if ax == "x" else (a[1], b[1])
+        segs, cur = [], lo
+        for c0, c1 in cuts:
+            if c0 > cur:
+                segs.append((cur, c0))
+            cur = max(cur, c1)
+        if cur < hi:
+            segs.append((cur, hi))
+        for s0, s1 in segs:
+            if ax == "x":
+                lines.append(smd_pad("1", (s0 + s1) / 2, a[1], s1 - s0, wall, "rect"))
+            else:
+                lines.append(smd_pad("1", a[0], (s0 + s1) / 2, wall, s1 - s0, "rect"))
+    lines.append(_rect("F.Fab", -hl, -hw, hl, hw))
+    return write(lib_dir, name, lines)
+
+
+def npth_hole(lib_dir, d):
+    """Неметаллизированное крепёжное отверстие диаметром d."""
+    name = f"MountingHole_{d}mm_NPTH"
+    lines = _hdr(name, f"Non-plated mounting hole {d} mm", smd=False)
+    lines.append(f'  (pad "" np_thru_hole circle (at 0 0) (size {d} {d}) (drill {d}) (layers "*.Cu" "*.Mask"))')
+    lines.append(f'  (fp_circle (center 0 0) (end {d / 2 + 0.25:.3f} 0) (stroke (width 0.05) (type solid)) (fill none) (layer "F.CrtYd"))')
+    return write(lib_dir, name, lines)

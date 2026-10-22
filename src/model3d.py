@@ -92,11 +92,10 @@ def module_parts(with_shield=True, include_hidden=False):
         if inside and skip:
             continue   # под экраном — на изображениях не видны
         parts.append((name, comp_solid(name, x, y, l, w, h, kind), kind))
-    for i, (x, y, r) in enumerate(D.PASSIVES):
+    for i, (x, y, r, l, w, h) in enumerate(D.PASSIVES):
         if skip and sh["x"] < x < sh["x"] + sh["l"] and sh["y"] < y < sh["y"] + sh["w"]:
             continue
-        l, w = (1.0, 0.5) if r == 0 else (0.5, 1.0)
-        parts.append((f"P{i}", cq.Workplane("XY").box(l, w, 0.5, centered=(True, True, False))
+        parts.append((f"P{i}", cq.Workplane("XY").box(l, w, h, centered=(True, True, False))
                       .translate((x, y, D.BOARD_T)), "passive"))
     if with_shield:
         parts.append(("shield", shield(), "shield"))
